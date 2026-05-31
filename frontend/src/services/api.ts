@@ -116,10 +116,11 @@ export const api = {
 
   // Products API
   async getProducts(): Promise<Product[]> {
-    return apiFetch('/products', {
+    const res = await apiFetch<{ data: Product[] }>('/products', {
       method: 'GET',
       headers: getHeaders(false)
     });
+    return res.data;
   },
 
   async getProduct(id: string): Promise<Product> {
