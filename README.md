@@ -31,28 +31,28 @@ npm run test:concurrency
 ---
 
 ## 1. How race conditions were handled
-To protect against race conditions during concurrent requests, the "read-modify-write" pattern in Node.js memory was strictly avoided.
-Instead, atomic database operations were utilized: stock deduction occurs via an atomic decrement operator with a simultaneous stock check (`WHERE stock >= quantity`) inside a single `prisma.$transaction`.
-To prevent duplicate requests during network failures, strict API idempotency was implemented: every reservation request includes a unique `idempotencyKey` validated by a database unique constraint.
+To protect against race conditions (specifically Lost Updates) during concurrent requests, the "read-modify-write" pattern in Node.js memory was strictly avoided.
+Instead, atomic database operations were utilized: stock deduction occurs via an atomic decrement operator with a simultaneous stock check (`WHERE stock >= quantity`) inside a single `prisma.$transaction`. 
+This atomic update leverages an implicit **pessimistic row-level lock** (cursor stability) for the duration of the transaction. The database queues concurrent updates, ensuring absolute correctness and making overselling mathematically impossible.
 
 ## 2. Why certain schema decisions were made
-*   **ACID Transactions:** A relational database (PostgreSQL) was chosen because of its native support for ACID (Atomicity, Consistency, Isolation, Durability) properties, which is critical for financial and inventory operations, unlike NoSQL solutions where strict consistency requires complex programmatic implementations.
-*   **Composite Indexes:** An `@@index([status, expiresAt])` was added to the `Reservation` table. This prevents Full Table Scans by the background worker searching for expired reservations.
-*   **Referential Integrity:** Strict `onDelete: Restrict` constraints were applied to relation models (e.g., `Order`) to prevent orphan records from accidental deletion of products or users.
-*   **Audit Trail:** An `InventoryLog` table was introduced to record every stock change. The log entry is created strictly atomically within the same transaction as the stock deduction.
+*   **ACID Transactions:** A relational database (PostgreSQL) was chosen for its native ACID properties, which are critical for financial/inventory systems where strict consistency is non-negotiable.
+*   **Idempotency & Unique Constraints:** A database-level `UNIQUE` constraint on the `idempotencyKey` column guarantees protection against duplicate transaction execution during Network Interruptions or client retries.
+*   **UUID Primary Keys:** Using UUIDs instead of auto-incrementing integers lays the foundation for future Horizontal Scaling (Sharding). It prevents ID collisions across distributed database nodes.
+*   **Composite Indexes:** An `@@index([status, expiresAt])` prevents Full Table Scans by the background worker searching for expired reservations.
+*   **Referential Integrity & Audit:** Strict `onDelete: Restrict` prevents orphan records. An `InventoryLog` table records every stock change atomically within the same transaction.
 
 ## 3. Trade-offs
-*   **Relational DB vs NoSQL:** Choosing PostgreSQL guarantees strict consistency and transaction reliability, but horizontally scaling (sharding) a relational database is significantly more complex compared to NoSQL databases.
-*   **Polling vs WebSockets:** Using client-side polling every 5 seconds for stock updates simplifies the frontend and backend architecture, but creates redundant background load on the server.
-*   **Optimistic vs Pessimistic Locking:** An optimistic approach (via atomic decrement) was used. This provides high throughput, but during massive concurrent requests for a single item, many requests will be rejected by the database. Pessimistic locking (`SELECT ... FOR UPDATE`) would solve this by queueing requests, but would drastically reduce system throughput.
+*   **Pessimistic Row Locking vs. Throughput:** The atomic decrement is a form of pessimistic row-level locking. While it mathematically guarantees protection against Lost Updates, at 10,000 concurrent requests to the *exact same item*, it will cause severe Lock Contention. Transactions will queue up in PostgreSQL, leading to a cascade of database timeouts.
+*   **Relational DB vs NoSQL:** PostgreSQL guarantees strict consistency, but horizontally scaling (sharding) a relational database is significantly more complex compared to distributed NoSQL databases.
+*   **Polling vs WebSockets:** Using client-side polling every 5 seconds simplifies the architecture but generates redundant background load.
 
 ## 4. What would break at 10k concurrent users
-*   **Lock Contention:** 10,000 users attempting to simultaneously update a single `Product` row (the stock of a specific item) will cause severe lock contention at the database level, leading to a cascading spike in lock timeouts.
-*   **Connection Pool Exhaustion:** The Node.js process will rapidly exhaust its connection limit to PostgreSQL, as each transaction will hold a connection waiting for a response from the overloaded disk.
-*   **Event Loop Blockage:** The single-threaded Node.js Event Loop will be overwhelmed by parsing 10,000 JSON requests and handling polling, increasing latency to unacceptable levels and causing false timeouts.
-*   **Self-DDoS:** Client-side polling (every 5 seconds) from 10,000 active browser tabs will generate a steady 2,000 requests per second (RPS) purely for stock reads, which will crash the API without caching.
+*   **The Hotspot / Celebrity Key Problem:** 10,000 users attacking a single limited item will direct all traffic to a single database row (and single database shard), rendering horizontal DB scaling completely useless for that specific item.
+*   **Connection Pool Exhaustion:** The Node.js cluster will rapidly exhaust its connection limit to PostgreSQL. Each request holds a connection while waiting in the row-lock queue.
+*   **Self-DDoS & Ephemeral Ports:** Aggressive client-side polling (every 5 seconds) from 10,000 active tabs will not only overwhelm the Node.js Event Loop, but instantly exhaust the limit of open file descriptors and ephemeral TCP ports on both the load balancers and backend servers.
 
 ## 5. How you'd scale it
-*   **Implementing a Message Queue (Decoupling):** Decoupling the synchronous HTTP request from heavy database writes. Incoming reservation requests should be pushed to a queue (RabbitMQ, Redis Streams, or BullMQ), while background workers process them at a controlled rate, preventing database overload.
-*   **Defensive Caching:** Offloading catalog and stock read operations to an In-Memory Cache (Redis). This will relieve load from PostgreSQL (read-scaling).
-*   **Rate Limiting at the Gateway Level:** Implementing strict request rate limiting (e.g., Token Bucket algorithm) at the Nginx, HAProxy, or API Gateway level before the traffic even reaches the Node.js servers.
+*   **Redis as the Single Source of Truth (Atomic Lua Scripts):** To solve the Hotspot problem and avoid PostgreSQL lock contention, the inventory counter must be moved to an In-Memory store (Redis). Atomic deductions are handled strictly via Lua scripts inside Redis (guaranteeing thread-safe execution without heavy locks).
+*   **Message Queue (Decoupling):** After a successful deduction in Redis, the request is pushed to a Message Queue (RabbitMQ / Kafka). Background workers asynchronously process this queue to create the permanent relational records and audit logs in PostgreSQL at a controlled, safe rate.
+*   **WebSockets / SSE (Transport Layer Upgrade):** To fix the polling Self-DDoS, HTTP polling must be replaced with WebSockets or Server-Sent Events (SSE). Leveraging the Reactor pattern and non-blocking I/O, a single Node.js process can efficiently maintain tens of thousands of idle connections with minimal memory overhead, pushing stock updates only when actual changes occur.
