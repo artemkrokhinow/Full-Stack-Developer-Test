@@ -1,5 +1,4 @@
 import { Prisma, Product } from '@prisma/client';
-import { redis, redisOnline } from '../workers/reservation.worker';
 import { logger } from '../utils/logger';
 import prisma from '../utils/prisma';
 
@@ -88,34 +87,30 @@ export class ProductService {
     return this.formatProduct(productRecord);
   }
 
-  static async releaseExpiredReservations(): Promise<{ id: string; productId: string; quantity: number }[]> {
+  static async releaseExpiredReservations(): Promise<void> {
+    // Выбираем ограниченный батч для предотвращения долгих блокировок таблиц
     const expiredReservations = await prisma.reservation.findMany({
-      where: {
-        status: 'PENDING',
-        expiresAt: { lt: new Date() }
-      }
+      where: { status: 'PENDING', expiresAt: { lt: new Date() } },
+      take: 50 
     });
 
-    if (expiredReservations.length === 0) {
-      return [];
-    }
-
-    logger.info(`Found ${expiredReservations.length} expired reservations to release.`);
-    const releasedItems = [];
-
     for (const res of expiredReservations) {
-      try {
-        await prisma.$transaction(async (tx) => {
-          await tx.reservation.update({
-            where: { id: res.id, status: 'PENDING' },
-            data: { status: 'EXPIRED' }
-          });
+      await prisma.$transaction(async (tx) => {
+        // Идемпотентная проверка: обновляем только если статус все еще PENDING
+        // Защита от гонки, если пользователь параллельно успел нажать Checkout [2, 3]
+        const updated = await tx.reservation.updateMany({
+          where: { id: res.id, status: 'PENDING' },
+          data: { status: 'EXPIRED' }
+        });
 
+        // Если updateMany вернул count > 0, значит эта транзакция "выиграла" гонку
+        if (updated.count > 0) {
           await tx.product.update({
             where: { id: res.productId },
             data: { stock: { increment: res.quantity } }
           });
 
+          // Атомарная запись в аудит-лог (требование ТЗ) [3]
           await tx.inventoryLog.create({
             data: {
               productId: res.productId,
@@ -123,25 +118,8 @@ export class ProductService {
               reason: `RESERVATION_EXPIRED:${res.id}`
             }
           });
-        });
-
-        if (redisOnline) {
-          const updatedProduct = await prisma.product.findUnique({ where: { id: res.productId } });
-          if (updatedProduct) {
-            await redis.set(`product:${res.productId}:stock`, updatedProduct.stock);
-          }
         }
-
-        releasedItems.push({
-          id: res.id,
-          productId: res.productId,
-          quantity: res.quantity
-        });
-      } catch (err: unknown) {
-        logger.error(`Failed to release reservation ${res.id}`, err);
-      }
+      });
     }
-
-    return releasedItems;
   }
 }
