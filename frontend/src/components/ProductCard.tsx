@@ -19,7 +19,7 @@ export function ProductCard({ product, onClick }: ProductCardProps) {
       <div className="product-image-placeholder">
         <div className="product-image-fallback">📦</div>
       </div>
-      <h3 className="product-card-title">{product.title}</h3>
+      <h3 className="product-card-title">{product.name}</h3>
       <div className="product-card-footer">
         <span className="product-price">${product.price}</span>
         <StockBadge stock={product.stock} />

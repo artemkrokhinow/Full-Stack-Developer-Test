@@ -68,7 +68,7 @@ const CartItem: React.FC<{
     return (
       <div className="glass-panel" style={{ padding: '24px', opacity: 0.6, border: '1px solid var(--error)' }}>
         <h3 style={{ color: 'var(--error)' }}>Reservation Expired</h3>
-        <p>{reservation.product.title} (x{reservation.quantity})</p>
+        <p>{reservation.product.name} (x{reservation.quantity})</p>
       </div>
     );
   }
@@ -76,7 +76,7 @@ const CartItem: React.FC<{
   return (
     <div className="glass-panel" style={{ padding: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
       <div>
-        <h3 style={{ margin: '0 0 8px 0' }}>{reservation.product.title}</h3>
+        <h3 style={{ margin: '0 0 8px 0' }}>{reservation.product.name}</h3>
         <p style={{ margin: 0, color: 'rgba(255,255,255,0.6)', fontSize: '14px' }}>
           Quantity: {reservation.quantity} | Total: ${(reservation.product.price * reservation.quantity).toFixed(2)}
         </p>

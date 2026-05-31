@@ -41,14 +41,14 @@ export const TestDropPage: React.FC<TestDropPageProps> = ({ products, onBack }) 
     }
 
     if (targetProduct.stock <= 0) {
-      addLog(`❌ Product "${targetProduct.title}" has 0 stock. Wait for expiration or seed DB.`);
+      addLog(`❌ Product "${targetProduct.name}" has 0 stock. Wait for expiration or seed DB.`);
       setIsRunning(false);
       return;
     }
 
     try {
       addLog(`🚀 Starting Test: ${type.toUpperCase()}`);
-      addLog(`   Target Product: "${targetProduct.title}"`);
+      addLog(`   Target Product: "${targetProduct.name}"`);
       addLog(`   Initial Stock: ${targetProduct.stock}`);
 
       addLog('1️⃣ Registering temporary test user...');
@@ -179,7 +179,7 @@ export const TestDropPage: React.FC<TestDropPageProps> = ({ products, onBack }) 
             style={{ maxWidth: '400px' }}
           >
             {products.map(p => (
-              <option key={p.id} value={p.id}>{p.title || p.name} (Stock: {p.stock})</option>
+              <option key={p.id} value={p.id}>{p.name || p.name} (Stock: {p.stock})</option>
             ))}
           </select>
         </div>

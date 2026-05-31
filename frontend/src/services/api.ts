@@ -86,7 +86,7 @@ export interface User {
 
 export interface Product {
   id: string;
-  title: string;
+  name: string;
   description: string;
   price: number;
   stock: number;
@@ -98,6 +98,7 @@ export interface Product {
 export interface Reservation {
   id: string;
   expiresAt: string;
+  quantity: number;
 }
 
 export const api = {

@@ -15,7 +15,7 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({ products, onSelectProd
 
   // Filtering products
   const filteredProducts = products.filter((product) => {
-    const matchesSearch = product.title.toLowerCase().includes(search.toLowerCase()) || 
+    const matchesSearch = product.name.toLowerCase().includes(search.toLowerCase()) || 
                           product.description.toLowerCase().includes(search.toLowerCase());
     const matchesCategory = selectedCategory === 'All' || product.category === selectedCategory;
     return matchesSearch && matchesCategory;
@@ -69,10 +69,10 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({ products, onSelectProd
             <div key={product.id} className="glass-panel product-card">
               <div className="product-card-visual">
                 <span className="product-card-badge">{product.badge}</span>
-                {product.title.split(' ')[0]}
+                {product.name.split(' ')[0]}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <h3 style={{ fontSize: '18px' }}>{product.title}</h3>
+                <h3 style={{ fontSize: '18px' }}>{product.name}</h3>
                 <p
                   style={{
                     fontSize: '12px',

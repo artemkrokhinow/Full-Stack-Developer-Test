@@ -136,14 +136,14 @@ export const ProductPage: React.FC<ProductPageProps> = ({
               Reserved
             </div>
           )}
-          {product.title.split(' ')[0]}
+          {product.name.split(' ')[0]}
         </div>
 
         {/* Info panel */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div>
             <span className="product-category-badge">{product.category}</span>
-            <h2 style={{ fontSize: '32px', marginTop: '12px' }}>{product.title}</h2>
+            <h2 style={{ fontSize: '32px', marginTop: '12px' }}>{product.name}</h2>
             <div className="product-card-price" style={{ fontSize: '28px', marginTop: '8px', color: 'var(--accent)' }}>
               ${product.price.toFixed(2)}
             </div>
