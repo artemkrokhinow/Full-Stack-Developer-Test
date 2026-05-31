@@ -39,6 +39,35 @@ sequenceDiagram
         W->>DB: Update Reservation Status -> EXPIRED
     end
 ```
+---
+
+## 🧪 How to Verify (For the Reviewer)
+
+This project includes a **Concurrency Simulation Script** to prove that race conditions are handled correctly and stock never goes negative.
+
+1. **Start the environment (Local)**
+   Ensure the database and server are running:
+   ```bash
+   docker-compose up -d
+   npm run dev -w backend
+   ```
+
+2. **Run the 100-User Concurrency Test**
+   Run the following command from the root directory:
+   ```bash
+   npm run test:concurrency -w backend
+   ```
+   *To run against a deployed URL (e.g. pxxl.app):*
+   ```bash
+   npm run test:concurrency -w backend -- https://your-app.pxxl.app
+   ```
+
+**What the script does:**
+- Registers a temporary test user and logs in.
+- Fetches the current stock of the first available product.
+- Fires **100 concurrent POST /reserve requests** in parallel (`Promise.allSettled`).
+- Asserts that exactly `N` requests succeed (where `N` is the available stock), and the remaining fail with `409 Out of Stock`.
+- Asserts that the final stock is never negative.
 
 ---
 

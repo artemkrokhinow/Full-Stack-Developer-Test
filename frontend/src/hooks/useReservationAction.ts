@@ -20,7 +20,8 @@ export interface UseReservationActionReturn {
 const INITIAL_STATE: ReservationState = { phase: 'idle' };
 
 export function useReservationAction(
-  onSuccess: () => void
+  onSuccess: () => void,
+  onReserveSuccess?: () => void
 ): UseReservationActionReturn {
   const [state, setState] = useState<ReservationState>(INITIAL_STATE);
 
@@ -62,6 +63,9 @@ export function useReservationAction(
           phase: 'active',
           reservation: { id: resRecord.id, expiresAt: resRecord.expiresAt },
         });
+        
+        if (onReserveSuccess) onReserveSuccess();
+        
       } catch (err: unknown) {
         let message = 'Reservation failed. Please try again.';
         if (err instanceof Error) {
@@ -83,7 +87,7 @@ export function useReservationAction(
         });
       }
     },
-    []
+    [onReserveSuccess]
   );
 
   const checkout = useCallback(async () => {

@@ -18,7 +18,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   return (
     <nav className="glass-panel navbar">
       <div className="brand" onClick={() => setCurrentPage('catalog')}>
-        CYBER MALL
+        STORE
       </div>
       <div className="nav-links">
         <span
@@ -26,6 +26,13 @@ export const Navbar: React.FC<NavbarProps> = ({
           onClick={() => setCurrentPage('catalog')}
         >
           Catalog
+        </span>
+        <span
+          className={`nav-link ${currentPage === 'test-drop' ? 'active' : ''}`}
+          onClick={() => setCurrentPage('test-drop')}
+          style={{ color: 'var(--accent)', fontWeight: 'bold' }}
+        >
+          🧪 Test Drop
         </span>
         <span
           className={`nav-link ${currentPage === 'cart' ? 'active' : ''}`}

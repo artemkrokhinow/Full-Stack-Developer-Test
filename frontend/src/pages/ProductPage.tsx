@@ -9,6 +9,7 @@ interface ProductPageProps {
   products: Product[];
   onBack: () => void;
   onCheckoutSuccess: () => void;
+  onReserveSuccess: () => void;
   isAuthenticated: boolean;
   onRedirectToLogin: () => void;
   userId: string | null;
@@ -19,13 +20,14 @@ export const ProductPage: React.FC<ProductPageProps> = ({
   products,
   onBack,
   onCheckoutSuccess,
+  onReserveSuccess,
   isAuthenticated,
   onRedirectToLogin,
   userId,
 }) => {
   const product = products.find((p) => p.id === productId);
 
-  const { state, reserve, checkout, reset } = useReservationAction(onCheckoutSuccess);
+  const { state, reserve, checkout, reset } = useReservationAction(onCheckoutSuccess, onReserveSuccess);
 
   const isReservationActive = state.phase === 'active' || state.phase === 'checking-out';
   const reservation = 'reservation' in state ? state.reservation : null;
@@ -161,7 +163,7 @@ export const ProductPage: React.FC<ProductPageProps> = ({
               display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px',
               fontSize: '13px', color: 'rgba(0,0,0,0.45)'
             }}>
-              {product.specs.map((spec, i) => (
+              {(product.specs || []).map((spec, i) => (
                 <li key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <span style={{ color: 'var(--accent)' }}>•</span> {spec}
                 </li>

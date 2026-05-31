@@ -65,7 +65,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onAuthSuccess }) => {
   return (
     <div className="glass-panel auth-card">
       <h2 style={{ textAlign: 'center', marginBottom: '20px' }}>
-        {isRegister ? 'Join Cyber Mall' : 'Sign In'}
+        {isRegister ? 'Join Store' : 'Sign In'}
       </h2>
 
       {error && <div className="alert alert-error">{error}</div>}
@@ -104,7 +104,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onAuthSuccess }) => {
         </button>
       </form>
 
-      <div style={{ marginTop: '20px', textAlign: 'center', fontSize: '13px', color: 'rgba(255,255,255,0.6)' }}>
+      <div style={{ marginTop: '20px', textAlign: 'center', fontSize: '13px', color: 'rgba(0,0,0,0.6)' }}>
         {isRegister ? 'Already have an account?' : "Don't have an account?"}{' '}
         <button
           className="btn-link"
@@ -124,7 +124,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onAuthSuccess }) => {
           paddingTop: '16px',
           borderTop: '1px solid var(--border-solid)',
           fontSize: '11px',
-          color: 'rgba(255,255,255,0.4)',
+          color: 'rgba(0,0,0,0.4)',
           textAlign: 'center'
         }}
       >

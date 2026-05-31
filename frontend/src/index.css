@@ -167,6 +167,24 @@ h1, h2, h3, h4, h5 {
   cursor: not-allowed;
 }
 
+.btn-link {
+  background: none;
+  border: none;
+  color: var(--primary);
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: color 0.15s;
+}
+
+.btn-link:hover {
+  color: var(--primary-hover);
+}
+
 /* Product Catalog */
 .product-grid {
   display: grid;

@@ -18,6 +18,11 @@ export function setAuthToken(token: string) {
   localStorage.setItem('token', token);
 }
 
+export function clearAuthToken() {
+  cachedToken = null;
+  localStorage.removeItem('token');
+}
+
 function getHeaders(authRequired = true): HeadersInit {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   
@@ -66,6 +71,12 @@ export async function apiFetch<T>(endpoint: string, options: RequestInit = {}, t
   } finally {
     clearTimeout(id);
   }
+}
+
+export interface UserProfile {
+  id: string;
+  email: string;
+  reservations?: (Reservation & { product: Product })[];
 }
 
 export interface User {
@@ -131,9 +142,9 @@ export const api = {
   },
 
   // Checkout API
-  async reserve(userId: string, productId: string, quantity: number): Promise<Reservation> {
+  async reserve(userId: string, productId: string, quantity: number, customIdempotencyKey?: string): Promise<Reservation> {
     // Клиент обязан сам генерировать idempotencyKey для каждого нового бизнес-намерения
-    const idempotencyKey = crypto.randomUUID(); 
+    const idempotencyKey = customIdempotencyKey || crypto.randomUUID(); 
     
     const data = await apiFetch<{ message: string; reservations: Reservation[] }>('/checkout/reserve', {
       method: 'POST',

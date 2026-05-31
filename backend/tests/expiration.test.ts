@@ -1,64 +1,79 @@
 import { ProductService } from '../src/services/product.service';
 import prisma from '../src/utils/prisma';
-import { logger } from '../src/utils/logger';
 
-// Mock dependencies
 jest.mock('../src/utils/prisma', () => ({
   __esModule: true,
   default: {
-    reservation: {
-      findMany: jest.fn(),
-      update: jest.fn(),
-    },
-    product: {
-      update: jest.fn(),
-    },
-    inventoryLog: {
-      create: jest.fn(),
-    },
-    $transaction: jest.fn((callback) => callback(prisma)),
+    reservation: { findMany: jest.fn() },
+    $transaction: jest.fn(),
   },
 }));
 
-jest.mock('../src/utils/logger', () => ({
-  logger: {
-    info: jest.fn(),
-    error: jest.fn(),
-  },
-}));
+describe('ProductService.releaseExpiredReservations', () => {
+  beforeEach(() => jest.clearAllMocks());
 
-describe('Expiration Logic (ProductService.releaseExpiredReservations)', () => {
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
-
-  it('does nothing if no expired reservations are found', async () => {
+  it('should do nothing when no expired reservations exist', async () => {
     (prisma.reservation.findMany as jest.Mock).mockResolvedValue([]);
-
-    const released = await ProductService.releaseExpiredReservations();
-
-    expect(released).toEqual([]);
+    await ProductService.releaseExpiredReservations();
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
-  it('releases expired reservations and restores stock', async () => {
-    const expiredReservations = [
-      { id: 'res-1', productId: 'prod-1', quantity: 1, expiresAt: new Date(Date.now() - 1000) },
-      { id: 'res-2', productId: 'prod-2', quantity: 2, expiresAt: new Date(Date.now() - 5000) },
+  it('should expire reservations and restore stock in batches', async () => {
+    const mockExpired = [
+      { id: 'res-1', productId: 'prod-1', quantity: 2, status: 'PENDING', expiresAt: new Date(Date.now() - 1000) },
+      { id: 'res-2', productId: 'prod-2', quantity: 1, status: 'PENDING', expiresAt: new Date(Date.now() - 5000) },
     ];
-    (prisma.reservation.findMany as jest.Mock).mockResolvedValue(expiredReservations);
-    
-    // Mock successful transaction responses (mock the implementations so they pass silently)
-    (prisma.reservation.update as jest.Mock).mockResolvedValue({});
-    (prisma.product.update as jest.Mock).mockResolvedValue({});
-    (prisma.inventoryLog.create as jest.Mock).mockResolvedValue({});
+    (prisma.reservation.findMany as jest.Mock).mockResolvedValue(mockExpired);
 
-    const released = await ProductService.releaseExpiredReservations();
+    // Mock $transaction to execute the callback with a mock tx
+    (prisma.$transaction as jest.Mock).mockImplementation(async (cb: (tx: any) => Promise<void>) => {
+      const tx = {
+        reservation: {
+          updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        },
+        product: {
+          update: jest.fn().mockResolvedValue({}),
+        },
+        inventoryLog: {
+          create: jest.fn().mockResolvedValue({}),
+        },
+      };
+      await cb(tx);
+      return tx;
+    });
 
-    expect(released).toHaveLength(2);
-    expect(released[0].id).toBe('res-1');
-    expect(prisma.reservation.findMany).toHaveBeenCalled();
+    await ProductService.releaseExpiredReservations();
+
+    // Should have been called once per expired reservation
     expect(prisma.$transaction).toHaveBeenCalledTimes(2);
-    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Found 2 expired reservations to release.'));
+  });
+
+  it('should NOT restore stock if reservation was already processed (race condition guard)', async () => {
+    const mockExpired = [
+      { id: 'res-1', productId: 'prod-1', quantity: 1, status: 'PENDING', expiresAt: new Date(Date.now() - 1000) },
+    ];
+    (prisma.reservation.findMany as jest.Mock).mockResolvedValue(mockExpired);
+
+    let capturedTx: any;
+    (prisma.$transaction as jest.Mock).mockImplementation(async (cb: (tx: any) => Promise<void>) => {
+      capturedTx = {
+        reservation: {
+          updateMany: jest.fn().mockResolvedValue({ count: 0 }), // Already processed!
+        },
+        product: {
+          update: jest.fn(),
+        },
+        inventoryLog: {
+          create: jest.fn(),
+        },
+      };
+      await cb(capturedTx);
+    });
+
+    await ProductService.releaseExpiredReservations();
+
+    // Product stock should NOT be incremented because updateMany returned count: 0
+    expect(capturedTx.product.update).not.toHaveBeenCalled();
+    expect(capturedTx.inventoryLog.create).not.toHaveBeenCalled();
   });
 });

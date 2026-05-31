@@ -1,6 +1,5 @@
 import { Reservation } from '@prisma/client';
 import crypto from 'crypto';
-import { redis, redisOnline, reservationQueue } from '../workers/reservation.worker';
 import { ProductService } from './product.service';
 import { loggerContext } from '../utils/logger';
 import { DomainError, OutOfStockException, ResourceNotFoundException, InvalidReservationError } from '../utils/errors';
@@ -113,20 +112,6 @@ export class CheckoutService {
       return { status: 'completed', reservation };
     }
 
-    if (!redisOnline || !reservationQueue) {
-      throw new ResourceNotFoundException('Reservation not found');
-    }
-
-    const job = await reservationQueue.getJob(id);
-    if (!job) {
-      throw new ResourceNotFoundException('Reservation not found or expired');
-    }
-
-    const state = await job.getState();
-    if (state === 'failed') {
-      return { status: 'failed', error: job.failedReason || 'Processing failed' };
-    }
-
-    return { status: 'processing' };
+    throw new ResourceNotFoundException('Reservation not found');
   }
 }

@@ -29,10 +29,18 @@ export class AuthService {
     return { token, user: { id: user.id, email: user.email } };
   }
 
-  static async getProfile(userId: string): Promise<Pick<User, 'id' | 'email'>> {
+  static async getProfile(userId: string) {
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, email: true }
+      select: { 
+        id: true, 
+        email: true,
+        reservations: {
+          where: { status: 'PENDING' },
+          include: { product: true },
+          orderBy: { createdAt: 'desc' }
+        }
+      }
     });
 
     if (!user) {

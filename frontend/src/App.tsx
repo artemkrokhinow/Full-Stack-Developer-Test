@@ -4,17 +4,19 @@ import CatalogPage from './pages/CatalogPage';
 import ProductPage from './pages/ProductPage';
 import AuthPage from './pages/AuthPage';
 import SuccessPage from './pages/SuccessPage';
-import { api } from './services/api';
-import type { Product } from './services/api';
+import TestDropPage from './pages/TestDropPage';
+import CartPage from './pages/CartPage';
+import { api, clearAuthToken } from './services/api';
+import type { Product, UserProfile } from './services/api';
 
-type Page = 'catalog' | 'product-detail' | 'auth' | 'success';
+type Page = 'catalog' | 'product-detail' | 'auth' | 'success' | 'test-drop' | 'cart';
 
 export function App() {
   const [currentPage, setCurrentPage] = useState<Page>('catalog');
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   
   // Auth state
-  const [user, setUser] = useState<{ id: string; email: string } | null>(null);
+  const [user, setUser] = useState<UserProfile | null>(null);
 
   // Products state
   const [products, setProducts] = useState<Product[]>([]);
@@ -41,7 +43,7 @@ export function App() {
         try {
           const userProfile = await api.getMe();
           if (isMounted) {
-            setUser({ id: userProfile.id, email: userProfile.email });
+            setUser(userProfile);
           }
         } catch (e) {
           // Token expired or invalid
@@ -56,7 +58,7 @@ export function App() {
     return () => { isMounted = false; };
   }, []);
 
-  const handleLogin = (authenticatedUser: { id: string; email: string }) => {
+  const handleLogin = (authenticatedUser: UserProfile) => {
     setUser(authenticatedUser);
     // Refresh products catalog
     fetchProducts();
@@ -66,11 +68,19 @@ export function App() {
 
   const handleLogout = () => {
     setUser(null);
-    localStorage.removeItem('token');
+    clearAuthToken();
   };
 
-  const handleCheckoutSuccess = () => {
+  const handleCheckoutSuccess = async () => {
     fetchProducts();
+    if (user?.id) {
+      try {
+        const userProfile = await api.getMe();
+        setUser(userProfile);
+      } catch (e) {
+        console.error(e);
+      }
+    }
     setCurrentPage('success');
   };
 
@@ -82,7 +92,7 @@ export function App() {
       <Navbar
         currentPage={currentPage}
         setCurrentPage={(page: string) => setCurrentPage(page as Page)}
-        cartCount={0}
+        cartCount={user?.reservations?.length || 0}
         user={user}
         onLogout={handleLogout}
       />
@@ -111,6 +121,16 @@ export function App() {
                 products={products}
                 onBack={() => setCurrentPage('catalog')}
                 onCheckoutSuccess={handleCheckoutSuccess}
+                onReserveSuccess={async () => {
+                  if (user?.id) {
+                    try {
+                      const userProfile = await api.getMe();
+                      setUser(userProfile);
+                    } catch (e) {
+                      console.error(e);
+                    }
+                  }
+                }}
                 isAuthenticated={!!user}
                 onRedirectToLogin={() => setCurrentPage('auth')}
                 userId={user?.id ?? null}
@@ -128,6 +148,24 @@ export function App() {
                   setCurrentPage('catalog');
                 }}
                 userEmail={user?.email || ''}
+              />
+            )}
+
+            {currentPage === 'cart' && (
+              <CartPage
+                reservations={user?.reservations || []}
+                onBack={() => setCurrentPage('catalog')}
+                onCheckoutSuccess={handleCheckoutSuccess}
+              />
+            )}
+
+            {currentPage === 'test-drop' && (
+              <TestDropPage
+                products={products}
+                onBack={() => {
+                  fetchProducts();
+                  setCurrentPage('catalog');
+                }}
               />
             )}
           </>

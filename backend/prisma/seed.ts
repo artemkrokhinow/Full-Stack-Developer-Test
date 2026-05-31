@@ -5,8 +5,8 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('Clearing existing data...');
   await prisma.inventoryLog.deleteMany({});
-  await prisma.reservation.deleteMany({});
   await prisma.order.deleteMany({});
+  await prisma.reservation.deleteMany({});
   await prisma.product.deleteMany({});
   await prisma.user.deleteMany({});
 
@@ -15,48 +15,66 @@ async function main() {
   const products = [
     {
       id: 'e2a0c648-9b87-4d92-a16e-1d6bbd280b11',
-      name: 'Cyber Sneakers v1.0',
-      price: 19999, // $199.99 in cents
-      stock: 8,
-      category: 'Footwear',
-      badge: 'Limited Drop',
-      description: 'Futuristic performance footwear featuring neon cyan light tracks and magnetic strapping. Engineered with carbon fiber structural arches for maximum impact isolation and response.'
+      name: 'T-Shirt',
+      price: 2999,
+      stock: 100,
+      category: 'Apparel',
+      badge: 'Essential',
+      description: 'Basic cotton t-shirt.'
     },
     {
       id: 'd4a0c648-9b87-4d92-a16e-1d6bbd280b22',
-      name: 'Holographic Matrix Visor',
-      price: 8999, // $89.99 in cents
-      stock: 15,
-      category: 'Accessories',
+      name: 'Hoodie',
+      price: 5999,
+      stock: 50,
+      category: 'Apparel',
       badge: 'Popular',
-      description: 'Augmented reality sunglasses with real-time UI layouts and UV reflection filters. Displays active notifications and network channels directly into your vision loop.'
+      description: 'Black zip hoodie.'
     },
     {
       id: 'c3a0c648-9b87-4d92-a16e-1d6bbd280b33',
-      name: 'Neural Cybernetic Jacket',
-      price: 29999, // $299.99 in cents
-      stock: 5,
-      category: 'Apparel',
+      name: 'Mouse',
+      price: 7999,
+      stock: 15,
+      category: 'Accessories',
       badge: 'Trending',
-      description: 'Thermo-regulating windbreaker featuring liquid polymer heating filaments. Outfitted with electro-chromic stripes that shift colors based on body temperature and ambient sounds.'
+      description: 'Wireless gaming mouse.'
     },
     {
       id: 'b2a0c648-9b87-4d92-a16e-1d6bbd280b44',
-      name: 'Tactical Hackers Backpack',
-      price: 13999, // $139.99 in cents
-      stock: 20,
-      category: 'Bags',
+      name: 'Keyboard',
+      price: 12999,
+      stock: 10,
+      category: 'Accessories',
       badge: 'Essential',
-      description: 'Sleek, modular tactical bag with built-in Faraday signal blocking pockets and an integrated USB-C power bank link. Features an ergonomic load distribution frame.'
+      description: 'Mechanical keyboard.'
     },
     {
       id: 'a1a0c648-9b87-4d92-a16e-1d6bbd280b55',
-      name: 'OLED Holographic Watch',
-      price: 24999, // $249.99 in cents
-      stock: 12,
-      category: 'Accessories',
+      name: 'Sneakers',
+      price: 14999,
+      stock: 5,
+      category: 'Footwear',
       badge: 'New Release',
-      description: 'Wristband watch displaying time and system logs via a projected micro-hologram. Features a titanium alloy structure and biometric monitoring sensors.'
+      description: 'Running sneakers.'
+    },
+    {
+      id: 'f5a0c648-9b87-4d92-a16e-1d6bbd280b66',
+      name: 'Cap',
+      price: 3999,
+      stock: 1,
+      category: 'Accessories',
+      badge: 'Limited Drop',
+      description: 'Limited edition cap.'
+    },
+    {
+      id: 'g6a0c648-9b87-4d92-a16e-1d6bbd280b77',
+      name: 'Watch',
+      price: 19999,
+      stock: 0,
+      category: 'Accessories',
+      badge: 'Sold Out',
+      description: 'Smart watch.'
     }
   ];
 
