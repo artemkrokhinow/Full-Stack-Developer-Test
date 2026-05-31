@@ -1,0 +1,4726 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+================================================================
+File Summary
+================================================================
+
+Purpose:
+--------
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+
+File Format:
+------------
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  a. A separator line (================)
+  b. The file path (File: path/to/file)
+  c. Another separator line
+  d. The full contents of the file
+  e. A blank line
+
+Usage Guidelines:
+-----------------
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+
+Notes:
+------
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+
+
+================================================================
+Directory Structure
+================================================================
+.gitignore
+agents/rules/AI_AGENT_RULES.md
+agents/rules/BACKEND_RULES.md
+agents/rules/FRONTEND_RULES.md
+agents/rules/GENERAL_RULES.md
+backend/.env
+backend/.env.example
+backend/jest.config.js
+backend/package.json
+backend/prisma/schema.prisma
+backend/prisma/seed.ts
+backend/src/app.ts
+backend/src/config/env.ts
+backend/src/controllers/auth.controller.ts
+backend/src/controllers/checkout.controller.ts
+backend/src/controllers/product.controller.ts
+backend/src/middleware/error.middleware.ts
+backend/src/middleware/observability.ts
+backend/src/middleware/rateLimiter.ts
+backend/src/middleware/validate.ts
+backend/src/routes/auth.routes.ts
+backend/src/routes/checkout.routes.ts
+backend/src/routes/product.routes.ts
+backend/src/server.ts
+backend/src/services/auth.service.ts
+backend/src/services/checkout.service.ts
+backend/src/services/product.service.ts
+backend/src/utils/auth.ts
+backend/src/utils/errors.ts
+backend/src/utils/logger.ts
+backend/src/utils/prisma.ts
+backend/src/workers/reservation.worker.ts
+backend/tests/checkout.service.test.ts
+backend/tests/expiration.test.ts
+backend/tests/reservation.test.ts
+backend/tsconfig.json
+frontend/.env
+frontend/eslint.config.js
+frontend/index.html
+frontend/package.json
+frontend/public/favicon.svg
+frontend/public/icons.svg
+frontend/src/App.tsx
+frontend/src/assets/hero.png
+frontend/src/assets/react.svg
+frontend/src/assets/vite.svg
+frontend/src/components/CountdownTimer.tsx
+frontend/src/components/Navbar.tsx
+frontend/src/components/ProductCard.tsx
+frontend/src/components/ReservationBanner.tsx
+frontend/src/components/StockBadge.tsx
+frontend/src/hooks/__tests__/useCountdown.test.ts
+frontend/src/hooks/useCountdown.ts
+frontend/src/hooks/useProductStock.ts
+frontend/src/hooks/useReservationAction.ts
+frontend/src/index.css
+frontend/src/main.tsx
+frontend/src/pages/AuthPage.tsx
+frontend/src/pages/CartPage.tsx
+frontend/src/pages/CatalogPage.tsx
+frontend/src/pages/ProductPage.tsx
+frontend/src/pages/SuccessPage.tsx
+frontend/src/services/__tests__/api.test.ts
+frontend/src/services/api.ts
+frontend/tsconfig.app.json
+frontend/tsconfig.json
+frontend/tsconfig.node.json
+frontend/vite.config.ts
+package.json
+README.md
+
+================================================================
+Files
+================================================================
+
+================
+File: .gitignore
+================
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+================
+File: agents/rules/AI_AGENT_RULES.md
+================
+# СИСТЕМНЫЕ ПРАВИЛА ДЛЯ ИИ-АГЕНТА (SENIOR FULL-STACK ARCHITECT)
+
+Действуй как Senior Full-Stack Architect. Отвечай прямо, технически, без вежливости и вступлений. Всегда применяй следующие архитектурные стандарты при генерации или ревью кода:
+
+## 1. БАЗА ДАННЫХ И CONCURRENCY (ЗАЩИТА ОТ ГОНОК)
+
+- **ЗАПРЕЩЕНО:** Выполнять операции по паттерну "чтение-модификация-запись" (read-modify-write) в памяти Node.js приложения. Это ведет к потерянным обновлениям (lost updates) при параллельных транзакциях [1].
+- **ОБЯЗАТЕЛЬНО:** Использовать исключительно атомарные операции записи на уровне базы данных [1].
+- **PRISMA:** При обновлении счетчиков (например, стока) использовать оператор `decrement` внутри `prisma.$transaction`. Обязательно добавлять условие проверки текущего баланса (например, `where: { stock: { gte: quantity } }`).
+- **БЛОКИРОВКИ:** Для сложной логики, требующей чтения перед записью, принудительно применять пессимистичную блокировку (явный `SELECT ... FOR UPDATE`) для изоляции параллельных транзакций [2].
+
+## 2. ИДЕМПОТЕНТНОСТЬ API
+
+- **ЗАПРЕЩЕНО:** Проектировать POST/PUT/PATCH эндпоинты мутаций без защиты от повторных сетевых запросов (ретраев) [3, 4].
+- **ОБЯЗАТЕЛЬНО:** Реализовывать идемпотентность через передачу клиентом заголовка или параметра `Idempotency-Key` [4].
+- **СХЕМА БД:** Требовать наличия ограничения `UNIQUE` на колонку `idempotencyKey` в базе данных.
+- **ОБРАБОТКА ОШИБОК:** При перехвате ошибки нарушения уникальности (в Prisma — код `P2002`) сервер не должен падать с 500 ошибкой. Вместо этого ИИ обязан написать логику перехвата, которая безопасно вернет клиенту данные уже существующей и успешно обработанной транзакции.
+
+## 3. CLEAN ARCHITECTURE И ГРАНИЦЫ СЛОЕВ
+
+- **ЗАПРЕЩЕНО:** Утечка деталей транспортного слоя (HTTP) в бизнес-домен. Сервисы не должны оперировать объектами `req`/`res` или возвращать HTTP-статусы (например, 404, 400). Это нарушает принцип единственной ответственности (SRP) [5].
+- **КОНТРОЛЛЕРЫ (Controllers):** Должны быть "тонкими". Их зона ответственности — парсинг HTTP-запроса, вызов Zod-валидатора, вызов соответствующего сервиса и форматирование JSON-ответа.
+- **СЕРВИСЫ (Services):** Содержат чистую бизнес-логику. При возникновении невалидных условий выбрасывают исключительно доменные классы ошибок (например, `CustomDomainError`, `InsufficientStockException`).
+- **ЦЕНТРАЛИЗОВАННАЯ ОБРАБОТКА ОШИБОК:** Трансляция доменных исключений в HTTP-коды ответов должна происходить строго в одном месте — в глобальном Error Middleware Express приложения.
+
+## 4. ФОРМАТ ОТВЕТОВ ИИ-АГЕНТА
+
+При ревью кода ИИ-агент обязан структурировать ответы строго по шаблону, без markdown-форматирования вне блоков:
+[Файл] -> [Проблема] -> [Риск для продакшена] -> [Точный исправленный код].
+
+================
+File: agents/rules/BACKEND_RULES.md
+================
+# ЖЕСТКИЕ ПРАВИЛА БЭКЕНДА (NODE.JS + PRISMA + EXPRESS)
+
+## 1. БАЗА ДАННЫХ И CONCURRENCY (ЗАЩИТА ОТ ГОНОК)
+
+- **Атомарность:** КАТЕГОРИЧЕСКИ ЗАПРЕЩЕН паттерн "read-modify-write" в памяти приложения Node.js [1]. Любые обновления счетчиков (баланс, сток) выполнять исключительно через атомарные операторы Prisma (`increment`/`decrement`) с проверкой остатка на уровне БД (`where: { stock: { gte: quantity } }`).
+- **Явные блокировки:** При реализации сложных транзакций, зависящих от предварительного чтения (защита от Write Skew), ОБЯЗАТЕЛЬНО применять пессимистичную блокировку через сырой SQL: `SELECT ... FOR UPDATE` [1, 2].
+- **Аудит-логи:** Любое изменение критичных данных (списание товара) обязано сопровождаться атомарной записью в лог (`InventoryLog`) строго в рамках единой `prisma.$transaction`.
+
+## 2. ИДЕМПОТЕНТНОСТЬ API
+
+- **Метаданные:** Все мутирующие эндпоинты (POST/PUT/PATCH/DELETE) обязаны принимать `Idempotency-Key` (UUID) из заголовка или тела запроса.
+- **Ограничения СУБД:** Поле `idempotencyKey` в Prisma-схеме обязано иметь ограничение `@unique`.
+- **Идемпотентный возврат:** При перехвате ошибки нарушения уникальности (код Prisma `P2002` по ключу идемпотентности) сервер НЕ ДОЛЖЕН падать. Вместо 500 ошибки необходимо выполнить поиск уже существующей записи и вернуть клиенту успешный ответ предыдущей транзакции [1, 2].
+
+## 3. CLEAN ARCHITECTURE (РАЗДЕЛЕНИЕ СЛОЕВ)
+
+- **Тонкие контроллеры:** HTTP-контроллеры выполняют строго три задачи: парсинг запроса, вызов Zod-валидатора и вызов метода сервиса. Вся бизнес-логика здесь запрещена.
+- **Изоляция сервисов:** Слой сервисов (Business Logic) полностью изолирован от Express. ЗАПРЕЩЕНО передавать объекты `req` и `res` в сервисы. ЗАПРЕЩЕНО оперировать HTTP-статусами (400, 404) внутри бизнес-логики.
+- **Доменные ошибки:** При нарушении бизнес-правил сервисы выбрасывают исключительно кастомные исключения (наследующие базовый класс `DomainError`), которые не содержат привязки к протоколу.
+
+## 4. ОБРАБОТКА ОШИБОК И FAIL-FAST
+
+- **Централизация:** Трансляция классов `DomainError` в соответствующие HTTP-коды выполняется строго в едином месте — глобальном Error Middleware в Express.
+- **Fail-Fast механизм:** При возникновении неперехваченных системных или программных исключений (`uncaughtException`, `unhandledRejection` или ошибки, не являющиеся `DomainError`) процесс Node.js должен быть немедленно завершен `process.exit(1)` [2]. ЗАПРЕЩЕНО оставлять процесс работать с поврежденным состоянием.
+
+## 5. OBSERVABILITY (НАБЛЮДАЕМОСТЬ)
+
+- **Correlation ID:** Каждому входящему запросу при входе присваивается UUID, который сохраняется в контексте `AsyncLocalStorage`. Все последующие вызовы логгера обязаны автоматически извлекать и прикреплять этот ID [1, 2].
+- **Структура JSON:** Логи пишутся в структурированном виде (паттерн Envelope). В объекте обязательно наличие `timestamp`, `correlationId`, `level` и вложенного блока `payload`.
+- **Защита данных:** КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО логировать пароли, секреты, токены и PII (персональные данные пользователей) для предотвращения утечек.
+
+## 6. ФОНОВЫЕ ЗАДАЧИ И WORKERS
+
+- **Асинхронность:** Тяжелые фоновые задачи (снятие резервов, очистка кэша) ЗАПРЕЩЕНО вызывать внутри синхронного цикла обработки HTTP-запроса [2].
+- **Конкурентные консьюмеры (Competing Consumers):** В кластерной среде фоновые задачи реализуются через очередь (например, BullMQ + Redis). Задача помещается в очередь и обрабатывается только одним воркером, исключая конфликты масштабирования [2].
+
+================
+File: agents/rules/FRONTEND_RULES.md
+================
+# ЖЕСТКИЕ ПРАВИЛА ФРОНТЕНДА (REACT + TYPESCRIPT)
+
+Действуй как Senior Frontend Architect. При генерации или ревью клиентского кода строго соблюдай следующие архитектурные стандарты:
+
+## 1. АСИНХРОННОСТЬ И POLLING (ЗАЩИТА ОТ УТЕЧЕК И DDOS)
+
+- **ЗАПРЕЩЕНО:** Использовать `setInterval` для сетевых запросов. При сетевых задержках это приводит к наслоению запросов и лавинообразной перегрузке бэкенда.
+- **ОБЯЗАТЕЛЬНО:** Использовать рекурсивный `setTimeout` для поллинга, который запускает следующий цикл ТОЛЬКО после полного завершения предыдущего запроса (через блок `finally`).
+- **ОЧИСТКА (CLEANUP):** Любой хук `useEffect`, инициализирующий таймеры или сетевые подписки, ОБЯЗАН возвращать функцию очистки (`clearTimeout`, `clearInterval`, `controller.abort()`). Игнорирование этого правила ведет к утечкам памяти при размонтировании компонента [1].
+
+## 2. УПРАВЛЕНИЕ СОСТОЯНИЕМ (STATE MANAGEMENT)
+
+- **ЗАПРЕЩЕНО:** Использовать разрозненные булевы флаги (например, `isLoading`, `isError`, `data` одновременно в одном объекте). Это порождает невалидные состояния (например, `isLoading: true` и `isError: true` одновременно) [2, 3].
+- **ОБЯЗАТЕЛЬНО:** Применять паттерн «Размеченное объединение» (Discriminated Union) для описания дискретных состояний. Состояние сетевого запроса должно явно моделироваться как конечный автомат: `RequestPending | RequestError | RequestSuccess` [4, 5].
+
+## 3. СЕТЕВЫЕ СБОИ И ТАЙМАУТЫ (RESILIENCY)
+
+- **ЗАПРЕЩЕНО:** Оставлять `fetch` без таймаутов. Браузерный `fetch` по умолчанию может висеть минутами, блокируя UI [6].
+- **ОБЯЗАТЕЛЬНО:** Оборачивать каждый сетевой вызов в механизмы контроля времени с использованием `AbortController`.
+- **ОБРАБОТКА ОШИБОК:** При перехвате `AbortError` интерфейс должен корректно переходить в состояние сетевого сбоя с возможностью повторной попытки (retry).
+
+## 4. ЧИСТАЯ АРХИТЕКТУРА И ГРАНИЦЫ (CLEAN ARCHITECTURE)
+
+- **ЗАПРЕЩЕНО:** Писать `fetch`-запросы, парсинг данных или логику таймеров напрямую внутри JSX/TSX-компонентов представлений (View Components) [7].
+- **РАЗДЕЛЕНИЕ СЛОЕВ:**
+  1. **Слой API (`services/api.ts`):** Изолированные функции для работы с HTTP, включающие получение токенов, таймауты и парсинг JSON.
+  2. **Слой Хуков (`hooks/use*`):** Инкапсулирует логику жизненного цикла, поллинга и стейт-менеджмента.
+  3. **Умные компоненты (Containers):** Получают данные из хуков и передают их вниз. Содержат минимум разметки [8].
+  4. **Глупые компоненты (Presentational):** Только принимают `props` и вызывают коллбэки (например, `onGenerateBlock()`). Никакой связи с внешним миром [7].
+
+## 5. СТРОГИЙ TYPESCRIPT
+
+- **ЗАПРЕЩЕНО:** Использовать тип `any`. Применение `any` отключает статический анализ и скрывает проблемы рефакторинга.
+- **ОБЯЗАТЕЛЬНО:** Если структура данных неизвестна заранее, применять `unknown` с последующим сужением типа (Type Narrowing) через Type Guards. Для контрактов API описывать строгие интерфейсы и проверять их совместимость.
+
+================
+File: agents/rules/GENERAL_RULES.md
+================
+# СИСТЕМНЫЕ ПРАВИЛА ИИ-АГЕНТА: BEST PRACTICES ПО КНИГАМ
+
+Действуй как Senior Full-Stack Architect. Отвечай прямо, технически, без вежливости и вступлений. Архитектурные решения должны жестко опираться на следующие принципы из специализированной литературы.
+
+## 1. БАЗА ДАННЫХ И ТРАНЗАКЦИИ (Designing Data-Intensive Applications)
+
+- **Lost Updates (Потерянные обновления):** КАТЕГОРИЧЕСКИ ЗАПРЕЩЕН паттерн "чтение-модификация-запись" (read-modify-write) в памяти приложения [1, 2]. Используй атомарные операции СУБД (например, `UPDATE ... SET value = value + 1`) или явные пессимистичные блокировки `SELECT ... FOR UPDATE` [3, 4].
+- **Write Skew (Смещение записи) и Фантомы:** Если бизнес-логика зависит от чтения набора данных (например, проверка лимитов), уровень изоляции Snapshot Isolation не защитит от конфликтов [5, 6]. Требуется уровень Serializable, либо реализация предикатных блокировок / index-range locks [7], либо принудительная материализация конфликтов.
+- **Изоляция транзакций:** Используй транзакции для гарантии атомарности: в случае сбоя или отказа сети транзакция должна безопасно отменяться (abort/rollback) без эффекта частичного применения [8, 9].
+
+## 2. АСИНХРОННОСТЬ И УПРАВЛЕНИЕ ПОТОКОМ (Node.js Design Patterns)
+
+- **Предотвращение утечек памяти (Memory Leaks):** ЗАПРЕЩЕНО создавать бесконечные рекурсивные цепочки резолва промисов для фоновых задач (например, `return delay(1).then(() => loop())`) [10-12]. Для долгоживущих фоновых процессов используй итеративные циклы `while(true)` с `await` [11].
+- **Защита от Zalgo:** API-функции обязаны быть строго предсказуемыми: всегда выполняться либо синхронно, либо асинхронно [13, 14]. Использование смешанного поведения ломает Event Loop.
+- **Fail-Fast механизм:** При возникновении неперехваченного исключения (`uncaughtException`) процесс не гарантирует консистентность замыканий. Система обязана немедленно упасть (`process.exit(1)`) для перезапуска чистой копии внешним супервизором [15].
+
+## 3. МИКРОСЕРВИСЫ И ИНТЕГРАЦИЯ (Production-Ready Microservices & System Design)
+
+- **Defensive Caching (Защитное кэширование):** Микросервис обязан защищать себя от падения нижестоящих зависимостей. Применяй LRU-кэширование критичных данных: если downstream-сервис упал, возвращай кэшированные (устаревшие) значения вместо каскадного отказа [16, 17].
+- **Rate Limiting:** Все публичные API обязаны использовать алгоритмы ограничения нагрузки (например, Token Bucket или Leaking Bucket) для предотвращения ресурсового голодания и DoS-атак [18-20].
+- **Circuit Breakers & Health Checks:** Маршрутизация трафика должна учитывать сбои. При всплеске ошибок вызовы к зависшему сервису должны размыкаться [21].
+- **Correlation ID:** При асинхронном общении и распределенном логировании к каждому запросу должен прикрепляться сквозной идентификатор корреляции для отслеживания пути сообщения через всю систему [22, 23].
+
+## 4. СТРОГИЙ TYPESCRIPT (Effective TypeScript & TS Quickly)
+
+- **Ограничение `any`:** КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО использовать `any` в возвращаемых типах функций — это приводит к скрытой утрате типобезопасности во всем проекте [24]. Если структура данных неизвестна (например, из JSON), используй `unknown` с последующим сужением (Type Guards) [25].
+- **State Management (Размеченное объединение):** ЗАПРЕЩЕНО моделировать состояния через разрозненные опциональные поля (например, `isLoading: boolean`, `error?: string`). Всегда используй размеченное объединение (Discriminated Union), допускающее только валидные состояния (например, `{ state: 'pending' } | { state: 'ok', data: T }`) [26, 27].
+
+================
+File: backend/.env.example
+================
+DATABASE_URL=postgresql://user:password@localhost:5432/reservation_db?schema=public
+REDIS_URL=redis://127.0.0.1:6379
+JWT_SECRET=your-secret-key-here
+CORS_ORIGIN=http://localhost:5173
+NODE_ENV=development
+PORT=3000
+
+================
+File: backend/jest.config.js
+================
+/** @type {import('ts-jest').JestConfigWithTsJest} */
+module.exports = {
+  preset: 'ts-jest',
+  testEnvironment: 'node',
+  testMatch: ['**/tests/**/*.test.ts'],
+  setupFiles: ['dotenv/config'],
+  clearMocks: true,
+};
+
+================
+File: backend/package.json
+================
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "private": true,
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "ts-node src/server.ts",
+    "build": "tsc",
+    "db:push": "prisma db push",
+    "db:seed": "prisma db seed",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.4.1",
+    "bcryptjs": "^2.4.3",
+    "bullmq": "^5.8.5",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "express-rate-limit": "^8.5.2",
+    "ioredis": "^5.4.1",
+    "jsonwebtoken": "^9.0.2",
+    "node-cron": "^3.0.3",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/jest": "^30.0.0",
+    "@types/jsonwebtoken": "^9.0.6",
+    "@types/node": "^20.12.7",
+    "@types/node-cron": "^3.0.11",
+    "@types/supertest": "^7.2.0",
+    "jest": "^30.4.2",
+    "prisma": "^6.4.1",
+    "supertest": "^7.2.2",
+    "ts-jest": "^29.4.11",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.5"
+  },
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
+  }
+}
+
+================
+File: backend/prisma/schema.prisma
+================
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ReservationStatus {
+  PENDING
+  COMPLETED
+  EXPIRED
+}
+
+enum OrderStatus {
+  COMPLETED
+  CANCELLED
+}
+
+model User {
+  id           String        @id @default(uuid())
+  email        String        @unique
+  passwordHash String
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  reservations Reservation[]
+  orders       Order[]
+}
+
+model Product {
+  id          String        @id @default(uuid())
+  name        String
+  price       Int           // Price in cents
+  stock       Int           @default(0)
+  category    String        @default("General")
+  description String        @default("")
+  imageUrl    String        @default("")
+  badge       String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  reservations  Reservation[]
+  orders        Order[]
+  inventoryLogs InventoryLog[]
+}
+
+model Reservation {
+  id        String            @id @default(uuid())
+  userId         String
+  productId      String
+  quantity       Int
+  status         ReservationStatus @default(PENDING)
+  expiresAt      DateTime
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  idempotencyKey String?           @unique
+
+  user      User    @relation(fields: [userId], references: [id], onDelete: Restrict)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  order     Order?
+
+  // Идеально для фоновой задачи: поиск [PENDING, <текущего_времени]
+  @@index([status, expiresAt])
+}
+
+model Order {
+  id            String      @id @default(uuid())
+  userId        String
+  productId     String
+  reservationId String      @unique
+  quantity      Int
+  totalAmount   Int
+  status        OrderStatus @default(COMPLETED)
+  createdAt     DateTime    @default(now())
+
+  // Explicit foreign key relations
+  user        User        @relation(fields: [userId], references: [id], onDelete: Restrict)
+  product     Product     @relation(fields: [productId], references: [id], onDelete: Restrict)
+  reservation Reservation @relation(fields: [reservationId], references: [id], onDelete: Restrict)
+}
+
+model InventoryLog {
+  id        String   @id @default(uuid())
+  productId String
+  change    Int
+  reason    String
+  createdAt DateTime @default(now())
+
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+================
+File: backend/prisma/seed.ts
+================
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+async function main() {
+  console.log('Clearing existing data...');
+  await prisma.inventoryLog.deleteMany({});
+  await prisma.reservation.deleteMany({});
+  await prisma.order.deleteMany({});
+  await prisma.product.deleteMany({});
+  await prisma.user.deleteMany({});
+
+  console.log('Seeding products with UUIDs...');
+  
+  const products = [
+    {
+      id: 'e2a0c648-9b87-4d92-a16e-1d6bbd280b11',
+      name: 'Cyber Sneakers v1.0',
+      price: 19999, // $199.99 in cents
+      stock: 8,
+      category: 'Footwear',
+      badge: 'Limited Drop',
+      description: 'Futuristic performance footwear featuring neon cyan light tracks and magnetic strapping. Engineered with carbon fiber structural arches for maximum impact isolation and response.'
+    },
+    {
+      id: 'd4a0c648-9b87-4d92-a16e-1d6bbd280b22',
+      name: 'Holographic Matrix Visor',
+      price: 8999, // $89.99 in cents
+      stock: 15,
+      category: 'Accessories',
+      badge: 'Popular',
+      description: 'Augmented reality sunglasses with real-time UI layouts and UV reflection filters. Displays active notifications and network channels directly into your vision loop.'
+    },
+    {
+      id: 'c3a0c648-9b87-4d92-a16e-1d6bbd280b33',
+      name: 'Neural Cybernetic Jacket',
+      price: 29999, // $299.99 in cents
+      stock: 5,
+      category: 'Apparel',
+      badge: 'Trending',
+      description: 'Thermo-regulating windbreaker featuring liquid polymer heating filaments. Outfitted with electro-chromic stripes that shift colors based on body temperature and ambient sounds.'
+    },
+    {
+      id: 'b2a0c648-9b87-4d92-a16e-1d6bbd280b44',
+      name: 'Tactical Hackers Backpack',
+      price: 13999, // $139.99 in cents
+      stock: 20,
+      category: 'Bags',
+      badge: 'Essential',
+      description: 'Sleek, modular tactical bag with built-in Faraday signal blocking pockets and an integrated USB-C power bank link. Features an ergonomic load distribution frame.'
+    },
+    {
+      id: 'a1a0c648-9b87-4d92-a16e-1d6bbd280b55',
+      name: 'OLED Holographic Watch',
+      price: 24999, // $249.99 in cents
+      stock: 12,
+      category: 'Accessories',
+      badge: 'New Release',
+      description: 'Wristband watch displaying time and system logs via a projected micro-hologram. Features a titanium alloy structure and biometric monitoring sensors.'
+    }
+  ];
+
+  for (const prod of products) {
+    const product = await prisma.product.create({
+      data: {
+        id: prod.id,
+        name: prod.name,
+        price: prod.price,
+        stock: prod.stock,
+        category: prod.category,
+        badge: prod.badge,
+        description: prod.description
+      }
+    });
+
+    // Write inventory seed log using change and reason fields
+    await prisma.inventoryLog.create({
+      data: {
+        productId: product.id,
+        change: product.stock,
+        reason: 'INITIAL_SEED'
+      }
+    });
+  }
+
+  console.log('Seeding finished successfully.');
+}
+
+main()
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });
+
+================
+File: backend/src/app.ts
+================
+import express, { Request, Response, NextFunction } from 'express';
+import cors from 'cors';
+import rateLimit from 'express-rate-limit';
+import { logger } from './utils/logger';
+import { observabilityMiddleware } from './middleware/observability';
+import { getMetrics } from './middleware/observability';
+import { authRouter } from './routes/auth.routes';
+import { productRouter } from './routes/product.routes';
+import { checkoutRouter } from './routes/checkout.routes';
+import { errorHandler } from './middleware/error.middleware';
+import { authenticateToken } from './utils/auth';
+import prisma from './utils/prisma';
+
+const app = express();
+
+// Add observability FIRST so correlationId is captured immediately
+app.use(observabilityMiddleware);
+
+app.use(cors({
+  origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+  credentials: true
+}));
+
+app.use(express.json());
+
+// Global rate limiter
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later' }
+});
+app.use(globalLimiter);
+
+// Health check
+app.get('/health', (_req: Request, res: Response) => {
+  res.json({ status: 'ok', uptime: process.uptime(), timestamp: new Date().toISOString() });
+});
+
+// Metrics endpoint
+app.get('/api/metrics', (_req: Request, res: Response) => {
+  res.json(getMetrics());
+});
+
+// Auth rate limiter
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: { error: 'Too many auth attempts' }
+});
+
+import { dropRateLimiter } from './middleware/rateLimiter';
+
+// API Routes
+app.use('/api/auth', authLimiter, authRouter);
+app.use('/api/products', productRouter);
+app.use('/api/checkout', authenticateToken, dropRateLimiter, checkoutRouter);
+
+// Admin details/inventory logging audit endpoint
+app.get('/api/admin/inventory-logs', 
+  authenticateToken,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const logs = await prisma.inventoryLog.findMany({
+        include: { product: { select: { name: true } } },
+        orderBy: { createdAt: 'desc' }
+      });
+      res.json(logs);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Global Error Handling Middleware
+app.use(errorHandler);
+
+export default app;
+
+================
+File: backend/src/config/env.ts
+================
+import 'dotenv/config';
+
+export const RESERVATION_EXPIRATION_MS = Number(process.env.RESERVATION_EXPIRATION_MS) || 5 * 60 * 1000;
+
+================
+File: backend/src/controllers/auth.controller.ts
+================
+import { Request, Response, NextFunction } from 'express';
+import { AuthService } from '../services/auth.service';
+import { AuthRequest } from '../utils/auth';
+
+export class AuthController {
+  static async register(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { email, password } = req.body;
+      const data = await AuthService.register(email, password);
+      res.status(201).json(data);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async login(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { email, password } = req.body;
+      const data = await AuthService.login(email, password);
+      res.json(data);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getMe(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      if (!req.userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+      const data = await AuthService.getProfile(req.userId);
+      res.json(data);
+    } catch (error) {
+      next(error);
+    }
+  }
+}
+
+================
+File: backend/src/controllers/checkout.controller.ts
+================
+import { Request, Response, NextFunction } from 'express';
+import { CheckoutService } from '../services/checkout.service';
+
+export class CheckoutController {
+  static async reserve(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { userId, productId, quantity, idempotencyKey } = req.body;
+      const reservation = await CheckoutService.reserve(userId, productId, quantity, idempotencyKey);
+      res.status(202).json({
+        message: 'Reservation is being processed',
+        reservations: [reservation]
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async checkout(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { reservationId } = req.body;
+      await CheckoutService.confirmCheckout(reservationId);
+      res.status(200).json({ success: true });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async status(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const statusData = await CheckoutService.getReservationStatus(id);
+      res.json(statusData);
+    } catch (error) {
+      next(error);
+    }
+  }
+}
+
+================
+File: backend/src/controllers/product.controller.ts
+================
+import { Request, Response, NextFunction } from 'express';
+import { ProductService, ProductQueryOptions } from '../services/product.service';
+
+export class ProductController {
+  static async getProducts(req: Request, res: Response, next: NextFunction) {
+    try {
+      const options: ProductQueryOptions = {
+        page: Math.max(1, parseInt(req.query.page as string) || 1),
+        limit: Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 10)),
+        sort: (req.query.sort as string) || 'createdAt',
+        order: (req.query.order as string) === 'asc' ? 'asc' : 'desc',
+        search: req.query.search as string | undefined,
+        category: req.query.category as string | undefined
+      };
+      const result = await ProductService.getAllProducts(options);
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getProductById(req: Request, res: Response, next: NextFunction) {
+    try {
+      const product = await ProductService.getProductById(req.params.id);
+      res.json(product);
+    } catch (error) {
+      next(error);
+    }
+  }
+}
+
+================
+File: backend/src/middleware/error.middleware.ts
+================
+import { Request, Response, NextFunction } from 'express';
+import { DomainError } from '../utils/errors';
+import { logger } from '../utils/logger';
+import { ZodError } from 'zod';
+
+function isOperationalError(error: unknown): boolean {
+  if (error instanceof DomainError) return true;
+  if (error instanceof ZodError) return true;
+  return false;
+}
+
+export function errorHandler(error: unknown, req: Request, res: Response, next: NextFunction) {
+  // 1. Domain errors → mapped HTTP status
+  if (error instanceof DomainError) {
+    logger.warn(`Domain Error: ${error.message}`, { path: req.path, statusCode: error.statusCode });
+    return res.status(error.statusCode).json({ error: error.message });
+  }
+
+  // 2. Zod validation errors → 400
+  if (error instanceof ZodError) {
+    logger.warn('Validation Error', { path: req.path, issues: error.issues });
+    return res.status(400).json({ error: 'Validation failed', details: error.issues });
+  }
+
+  // 3. Unknown/programmer errors → 500 + fail-fast
+  const message = error instanceof Error ? error.message : 'Internal Server Error';
+  logger.error('Unhandled Server Error', error instanceof Error ? error : new Error(String(error)));
+  res.status(500).json({ error: 'Internal Server Error' });
+
+  // Fail-fast: kill process for programmer errors
+  logger.fatal('Programmer error detected, initiating fail-fast shutdown...');
+  process.exit(1);
+}
+
+================
+File: backend/src/middleware/observability.ts
+================
+import { Request, Response, NextFunction } from 'express';
+import crypto from 'crypto';
+import { PassThrough } from 'stream';
+import { logger, loggerContext } from '../utils/logger';
+
+interface Metrics {
+  totalRequests: number;
+  totalErrors: number;
+  avgResponseTimeMs: number;
+  uptimeSeconds: number;
+}
+
+let totalRequests = 0;
+let totalErrors = 0;
+let totalResponseTime = 0;
+
+export const observabilityMiddleware = (req: Request, res: Response, next: NextFunction) => {
+  // Extract or generate Correlation ID
+  const correlationId = (req.headers['x-correlation-id'] as string) || crypto.randomUUID();
+  
+  // Set the Correlation ID in the response headers immediately
+  res.setHeader('X-Correlation-ID', correlationId);
+
+  // Wrap the entire request lifecycle in AsyncLocalStorage context
+  loggerContext.run({ correlationId, channelId: 'express-server' }, () => {
+    
+    totalRequests++;
+
+    // Log incoming request
+    logger.info(`Incoming ${req.method} ${req.url}`, {
+      method: req.method,
+      url: req.url,
+      ip: req.ip,
+      body: req.body, // Will be redacted automatically by logger
+      query: req.query
+    });
+
+    const start = process.hrtime();
+    let bytesSent = 0;
+
+    // Use PassThrough stream to capture bytes sent
+    const originalWrite = res.write;
+    const originalEnd = res.end;
+
+    const passthrough = new PassThrough();
+    passthrough.on('data', (chunk) => {
+      bytesSent += chunk.length;
+    });
+
+    res.write = function (this: Response, chunk: unknown, encoding?: unknown, callback?: unknown) {
+      if (chunk) passthrough.write(chunk as string | Buffer);
+      return originalWrite.call(this, chunk as string | Uint8Array, encoding as BufferEncoding, callback as (error: Error | null | undefined) => void);
+    } as typeof res.write;
+
+    res.end = function (this: Response, chunk?: unknown, encoding?: unknown, callback?: unknown) {
+      if (chunk && typeof chunk !== 'function') passthrough.end(chunk as string | Buffer);
+      return originalEnd.call(this, chunk as string | Uint8Array, encoding as BufferEncoding, callback as () => void);
+    } as typeof res.end;
+
+    res.on('finish', () => {
+      const diff = process.hrtime(start);
+      const timeMs = (diff[0] * 1e9 + diff[1]) / 1e6;
+      
+      totalResponseTime += timeMs;
+      if (res.statusCode >= 400) {
+        totalErrors++;
+      }
+
+      logger.info(`Outgoing Response ${req.method} ${req.url} - ${res.statusCode}`, {
+        method: req.method,
+        url: req.url,
+        statusCode: res.statusCode,
+        timeMs: timeMs.toFixed(2),
+        bytesSent
+      });
+    });
+
+    next();
+  });
+};
+
+export function getMetrics(): Metrics {
+  return {
+    totalRequests,
+    totalErrors,
+    avgResponseTimeMs: totalRequests > 0 ? Math.round(totalResponseTime / totalRequests) : 0,
+    uptimeSeconds: Math.round(process.uptime())
+  };
+}
+
+================
+File: backend/src/middleware/rateLimiter.ts
+================
+import rateLimit from 'express-rate-limit';
+
+// Применяется строго на роуты /reserve и /checkout
+export const dropRateLimiter = rateLimit({
+  windowMs: 10 * 1000, // 10 секунд
+  max: 5, // Не более 5 запросов с одного IP (защита от зажатой кнопки и ботов)
+  message: { error: 'Too many requests, please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+================
+File: backend/src/middleware/validate.ts
+================
+import { Request, Response, NextFunction } from 'express';
+import { z } from 'zod';
+
+export const validateBody = (schema: z.ZodSchema) => (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const parsed = schema.parse({
+      body: req.body,
+      query: req.query,
+      params: req.params,
+    });
+    req.body = parsed.body;
+    req.query = parsed.query;
+    req.params = parsed.params;
+    next();
+  } catch (err: unknown) {
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({ error: err.errors });
+    }
+    return res.status(400).json({ error: 'Validation failed' });
+  }
+};
+
+export const validate = validateBody;
+
+================
+File: backend/src/routes/auth.routes.ts
+================
+import { Router } from 'express';
+import { AuthController } from '../controllers/auth.controller';
+import { authenticateToken } from '../utils/auth';
+import { validateBody } from '../middleware/validate';
+import { z } from 'zod';
+
+export const authRouter = Router();
+
+const RegisterSchema = z.object({
+  body: z.object({
+    email: z.string().email('Invalid email format'),
+    password: z.string().min(6, 'Password must be at least 6 characters')
+  })
+});
+
+const LoginSchema = z.object({
+  body: z.object({
+    email: z.string().email('Invalid email format'),
+    password: z.string().min(6, 'Password must be at least 6 characters')
+  })
+});
+
+authRouter.post('/register', validateBody(RegisterSchema), AuthController.register);
+authRouter.post('/login', validateBody(LoginSchema), AuthController.login);
+authRouter.get('/me', authenticateToken, AuthController.getMe);
+
+================
+File: backend/src/routes/checkout.routes.ts
+================
+import { Router } from 'express';
+import { CheckoutController } from '../controllers/checkout.controller';
+import { z } from 'zod';
+import { validate } from '../middleware/validate';
+
+export const checkoutRouter = Router();
+
+const reserveSchema = z.object({
+  body: z.object({
+    userId: z.string().uuid(),
+    productId: z.string().uuid(),
+    quantity: z.number().int().positive(),
+    idempotencyKey: z.string().uuid().optional() // Make it optional for backward compatibility
+  })
+});
+
+const checkoutSchema = z.object({
+  body: z.object({
+    reservationId: z.string().uuid()
+  })
+});
+
+checkoutRouter.post('/reserve', validate(reserveSchema), CheckoutController.reserve);
+checkoutRouter.post('/', validate(checkoutSchema), CheckoutController.checkout);
+checkoutRouter.post('/confirm', validate(checkoutSchema), CheckoutController.checkout);
+checkoutRouter.get('/status/:id', CheckoutController.status);
+
+================
+File: backend/src/routes/product.routes.ts
+================
+import { Router } from 'express';
+import { ProductController } from '../controllers/product.controller';
+import { z } from 'zod';
+import { validateBody } from '../middleware/validate';
+
+export const productRouter = Router();
+
+const productIdSchema = z.object({
+  params: z.object({
+    id: z.string().uuid('Invalid product ID format')
+  })
+});
+
+productRouter.get('/', ProductController.getProducts);
+productRouter.get('/:id', validateBody(productIdSchema), ProductController.getProductById);
+
+================
+File: backend/src/server.ts
+================
+import 'dotenv/config';
+import app from './app';
+import { initRedisAndQueue } from './workers/reservation.worker';
+import { logger } from './utils/logger';
+
+const PORT = process.env.PORT || 3000;
+
+// Fail-fast process handlers
+process.on('uncaughtException', (err: Error) => {
+  logger.error('CRITICAL: Uncaught Exception! Shutting down immediately...', err);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason: unknown) => {
+  logger.error('CRITICAL: Unhandled Promise Rejection! Shutting down immediately...', reason);
+  process.exit(1);
+});
+
+async function startServer() {
+  // Initialize Redis stock sync and BullMQ Queue on start
+  await initRedisAndQueue();
+
+  const server = app.listen(PORT, () => {
+    logger.info(`Backend server is running on http://localhost:${PORT}`);
+  });
+
+  // Clean shutdown
+  process.on('SIGTERM', () => {
+    logger.info('SIGTERM received. Shutting down gracefully...');
+    server.close(() => {
+      logger.info('Server terminated');
+      process.exit(0);
+    });
+  });
+}
+
+startServer().catch((err: unknown) => {
+  logger.error('Failed to start server:', err);
+  process.exit(1);
+});
+
+================
+File: backend/src/services/auth.service.ts
+================
+import { User } from '@prisma/client';
+import { hashPassword, comparePassword, generateToken } from '../utils/auth';
+import { UserAlreadyExistsException, InvalidCredentialsException, ResourceNotFoundException } from '../utils/errors';
+import prisma from '../utils/prisma';
+
+export class AuthService {
+  static async register(email: string, password: string): Promise<{ token: string; user: Pick<User, 'id' | 'email'> }> {
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser) {
+      throw new UserAlreadyExistsException();
+    }
+
+    const passwordHash = hashPassword(password);
+    const user = await prisma.user.create({
+      data: { email, passwordHash }
+    });
+
+    const token = generateToken(user.id, user.email);
+    return { token, user: { id: user.id, email: user.email } };
+  }
+
+  static async login(email: string, password: string): Promise<{ token: string; user: Pick<User, 'id' | 'email'> }> {
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user || !comparePassword(password, user.passwordHash)) {
+      throw new InvalidCredentialsException();
+    }
+
+    const token = generateToken(user.id, user.email);
+    return { token, user: { id: user.id, email: user.email } };
+  }
+
+  static async getProfile(userId: string): Promise<Pick<User, 'id' | 'email'>> {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true }
+    });
+
+    if (!user) {
+      throw new ResourceNotFoundException('User not found');
+    }
+    return user;
+  }
+}
+
+================
+File: backend/src/services/checkout.service.ts
+================
+import { Reservation } from '@prisma/client';
+import crypto from 'crypto';
+import { redis, redisOnline, reservationQueue } from '../workers/reservation.worker';
+import { ProductService } from './product.service';
+import { loggerContext } from '../utils/logger';
+import { DomainError, OutOfStockException, ResourceNotFoundException, InvalidReservationError } from '../utils/errors';
+import prisma from '../utils/prisma';
+import { RESERVATION_EXPIRATION_MS } from '../config/env';
+
+interface PrismaError {
+  code: string;
+  meta?: { target?: string[] };
+}
+
+function isPrismaError(err: unknown): err is PrismaError {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    'code' in err &&
+    typeof (err as PrismaError).code === 'string'
+  );
+}
+
+export class CheckoutService {
+  static async reserve(userId: string, productId: string, quantity: number, idempotencyKey?: string): Promise<{ id: string; expiresAt: Date }> {
+    const targetIdempotencyKey = idempotencyKey || crypto.randomUUID();
+
+    try {
+      return await prisma.$transaction(async (tx) => {
+        // Атомарное декрементирование с проверкой остатка
+        const productUpdate = await tx.product.updateMany({
+          where: { id: productId, stock: { gte: quantity } },
+          data: { stock: { decrement: quantity } }
+        });
+
+        if (productUpdate.count === 0) {
+          throw Object.assign(new Error('Record to update not found.'), { code: 'P2025' });
+        }
+
+        const reservation = await tx.reservation.create({
+          data: {
+            userId,
+            productId,
+            quantity,
+            idempotencyKey: targetIdempotencyKey,
+            expiresAt: new Date(Date.now() + RESERVATION_EXPIRATION_MS)
+          }
+        });
+
+        // Транзакционная запись в аудит-лог
+        await tx.inventoryLog.create({
+          data: {
+            productId,
+            change: -quantity,
+            reason: `RESERVATION_CREATED:${reservation.id}`
+          }
+        });
+
+        return { id: reservation.id, expiresAt: reservation.expiresAt };
+      });
+    } catch (err: any) {
+      if (err.code === 'P2002' && err.meta?.target?.includes('idempotencyKey')) {
+        // Идемпотентный возврат при дублирующем запросе
+        const existing = await prisma.reservation.findUniqueOrThrow({ where: { idempotencyKey: targetIdempotencyKey } });
+        return { id: existing.id, expiresAt: existing.expiresAt };
+      }
+      if (err.code === 'P2025') {
+        throw new OutOfStockException('Not enough stock or product not found');
+      }
+      throw err;
+    }
+  }
+
+  static async confirmCheckout(reservationId: string): Promise<boolean> {
+    try {
+      await prisma.$transaction(async (tx) => {
+        const reservation = await tx.reservation.update({
+          where: { id: reservationId, status: 'PENDING' },
+          data: { status: 'COMPLETED' },
+          include: { product: true }
+        });
+
+        await tx.order.create({
+          data: {
+            userId: reservation.userId,
+            productId: reservation.productId,
+            reservationId: reservation.id,
+            quantity: reservation.quantity,
+            totalAmount: reservation.product.price * reservation.quantity,
+          }
+        });
+      });
+      return true;
+    } catch (err: any) {
+      // Безопасная отработка гонки (идемпотентность)
+      if (err.code === 'P2025') {
+        const existingOrder = await prisma.order.findUnique({ where: { reservationId } });
+        if (existingOrder) return true; // Заказ уже был успешно оформлен
+        
+        throw new InvalidReservationError('Reservation already completed, expired or not found');
+      }
+      if (err.code === 'P2002' && err.meta?.target?.includes('reservationId')) {
+        return true; // Idempotent return
+      }
+      throw err;
+    }
+  }
+
+  static async getReservationStatus(id: string): Promise<{ status: 'completed' | 'processing' | 'failed'; reservation?: Reservation; error?: string }> {
+    const reservation = await prisma.reservation.findUnique({ where: { id } });
+
+    if (reservation) {
+      return { status: 'completed', reservation };
+    }
+
+    if (!redisOnline || !reservationQueue) {
+      throw new ResourceNotFoundException('Reservation not found');
+    }
+
+    const job = await reservationQueue.getJob(id);
+    if (!job) {
+      throw new ResourceNotFoundException('Reservation not found or expired');
+    }
+
+    const state = await job.getState();
+    if (state === 'failed') {
+      return { status: 'failed', error: job.failedReason || 'Processing failed' };
+    }
+
+    return { status: 'processing' };
+  }
+}
+
+================
+File: backend/src/services/product.service.ts
+================
+import { Prisma, Product } from '@prisma/client';
+import { redis, redisOnline } from '../workers/reservation.worker';
+import { logger } from '../utils/logger';
+import prisma from '../utils/prisma';
+
+import { ResourceNotFoundException } from '../utils/errors';
+
+export interface ProductQueryOptions {
+  page: number;
+  limit: number;
+  sort: string;
+  order: 'asc' | 'desc';
+  search?: string;
+  category?: string;
+}
+
+export interface PaginatedResult<T> {
+  data: T[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export interface FormattedProduct {
+  id: string;
+  title: string;
+  price: number;
+  stock: number;
+  category: string;
+  badge: string | null;
+  description: string;
+}
+
+export class ProductService {
+  static formatProduct(p: Product): FormattedProduct {
+    return {
+      id: p.id,
+      title: p.name,
+      price: p.price / 100,
+      stock: p.stock,
+      category: p.category,
+      badge: p.badge,
+      description: p.description
+    };
+  }
+
+  static async getAllProducts(options: ProductQueryOptions): Promise<PaginatedResult<FormattedProduct>> {
+    const { page, limit, sort, order, search, category } = options;
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.ProductWhereInput = {};
+    if (search) {
+      where.name = { contains: search, mode: 'insensitive' };
+    }
+    if (category) {
+      where.category = category;
+    }
+
+    const [products, total] = await Promise.all([
+      prisma.product.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { [sort]: order }
+      }),
+      prisma.product.count({ where })
+    ]);
+
+    return {
+      data: products.map(ProductService.formatProduct),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
+    };
+  }
+
+  static async getProductById(id: string): Promise<FormattedProduct> {
+    const productRecord = await prisma.product.findUnique({ where: { id } });
+    if (!productRecord) {
+      throw new ResourceNotFoundException('Product not found');
+    }
+    return this.formatProduct(productRecord);
+  }
+
+  static async releaseExpiredReservations(): Promise<{ id: string; productId: string; quantity: number }[]> {
+    const expiredReservations = await prisma.reservation.findMany({
+      where: {
+        status: 'PENDING',
+        expiresAt: { lt: new Date() }
+      }
+    });
+
+    if (expiredReservations.length === 0) {
+      return [];
+    }
+
+    logger.info(`Found ${expiredReservations.length} expired reservations to release.`);
+    const releasedItems = [];
+
+    for (const res of expiredReservations) {
+      try {
+        await prisma.$transaction(async (tx) => {
+          await tx.reservation.update({
+            where: { id: res.id, status: 'PENDING' },
+            data: { status: 'EXPIRED' }
+          });
+
+          await tx.product.update({
+            where: { id: res.productId },
+            data: { stock: { increment: res.quantity } }
+          });
+
+          await tx.inventoryLog.create({
+            data: {
+              productId: res.productId,
+              change: res.quantity,
+              reason: `RESERVATION_EXPIRED:${res.id}`
+            }
+          });
+        });
+
+        if (redisOnline) {
+          const updatedProduct = await prisma.product.findUnique({ where: { id: res.productId } });
+          if (updatedProduct) {
+            await redis.set(`product:${res.productId}:stock`, updatedProduct.stock);
+          }
+        }
+
+        releasedItems.push({
+          id: res.id,
+          productId: res.productId,
+          quantity: res.quantity
+        });
+      } catch (err: unknown) {
+        logger.error(`Failed to release reservation ${res.id}`, err);
+      }
+    }
+
+    return releasedItems;
+  }
+}
+
+================
+File: backend/src/utils/auth.ts
+================
+import { Request, Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
+
+const JWT_SECRET = process.env.JWT_SECRET as string;
+if (!JWT_SECRET) {
+  throw new Error('FATAL: JWT_SECRET environment variable is not set');
+}
+
+interface JwtPayload {
+  userId: string;
+  email: string;
+}
+
+export interface AuthRequest extends Request {
+  userId?: string;
+  userEmail?: string;
+}
+
+export function hashPassword(password: string): string {
+  return bcrypt.hashSync(password, 10);
+}
+
+export function comparePassword(password: string, hash: string): boolean {
+  return bcrypt.compareSync(password, hash);
+}
+
+export function generateToken(userId: string, email: string): string {
+  return jwt.sign({ userId, email }, JWT_SECRET, { expiresIn: '24h' });
+}
+
+export function authenticateToken(req: AuthRequest, res: Response, next: NextFunction) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({ error: 'Access token required' });
+  }
+
+  jwt.verify(token, JWT_SECRET, (err, decoded) => {
+    if (err) {
+      return res.status(403).json({ error: 'Invalid or expired token' });
+    }
+    const payload = decoded as JwtPayload;
+    req.userId = payload.userId;
+    req.userEmail = payload.email;
+    next();
+  });
+}
+
+================
+File: backend/src/utils/errors.ts
+================
+export class DomainError extends Error {
+  public statusCode: number;
+
+  constructor(message: string, statusCode: number = 400) {
+    super(message);
+    this.name = this.constructor.name;
+    this.statusCode = statusCode;
+    Error.captureStackTrace(this, this.constructor);
+  }
+}
+
+export class UserAlreadyExistsException extends DomainError {
+  constructor(message: string = 'User with this email already exists') {
+    super(message, 409);
+  }
+}
+
+export class InvalidCredentialsException extends DomainError {
+  constructor(message: string = 'Invalid email or password') {
+    super(message, 401);
+  }
+}
+
+export class OutOfStockException extends DomainError {
+  constructor(message: string = 'Out of stock or race condition') {
+    super(message, 409);
+  }
+}
+
+export class ResourceNotFoundException extends DomainError {
+  constructor(message: string = 'Resource not found') {
+    super(message, 404);
+  }
+}
+
+export class ReservationExpiredError extends DomainError {
+  constructor() { 
+    super('Reservation expired', 400); 
+  }
+}
+
+export class InvalidReservationError extends DomainError {
+  constructor(message: string = 'Invalid reservation') { 
+    super(message, 400); 
+  }
+}
+
+================
+File: backend/src/utils/logger.ts
+================
+import { AsyncLocalStorage } from 'node:async_hooks';
+
+export interface LogContext {
+  correlationId: string;
+  channelId: string;
+}
+
+export const loggerContext = new AsyncLocalStorage<LogContext>();
+
+const maskSensitiveData = (data: unknown): unknown => {
+  if (typeof data !== 'object' || data === null) return data;
+  
+  if (Array.isArray(data)) {
+    return data.map(maskSensitiveData);
+  }
+
+  const source = data as Record<string, unknown>;
+  const masked: Record<string, unknown> = { ...source };
+  for (const key in masked) {
+    const lowerKey = key.toLowerCase();
+    if (lowerKey.includes('password') || lowerKey.includes('token') || lowerKey.includes('authorization') || lowerKey.includes('secret')) {
+      masked[key] = '***REDACTED***';
+    } else if (typeof masked[key] === 'object') {
+      masked[key] = maskSensitiveData(masked[key]);
+    }
+  }
+  return masked;
+};
+
+const createEnvelope = (level: string, contextMsg: string, payloadData: unknown = {}, error?: unknown) => {
+  const ctx = loggerContext.getStore();
+  const environment = process.env.NODE_ENV || 'development';
+  
+  const payload: Record<string, unknown> = {
+    context: contextMsg,
+    data: maskSensitiveData(payloadData)
+  };
+
+  if (error) {
+    if (error instanceof Error) {
+      payload.error = error.message;
+      payload.stack = error.stack; // Important for debugging
+    } else {
+      payload.error = String(error);
+    }
+  }
+
+  return JSON.stringify({
+    correlationId: ctx?.correlationId || 'no-correlation-id',
+    timestamp: new Date().toISOString(),
+    environment,
+    channel_id: ctx?.channelId || 'system',
+    level,
+    payload
+  });
+};
+
+export const logger = {
+  info: (msg: string, data: unknown = {}) => console.log(createEnvelope('info', msg, data)),
+  warn: (msg: string, data: unknown = {}) => console.warn(createEnvelope('warn', msg, data)),
+  error: (msg: string, err?: unknown, data: unknown = {}) => console.error(createEnvelope('error', msg, data, err)),
+  fatal: (msg: string, err?: unknown, data: unknown = {}) => console.error(createEnvelope('fatal', msg, data, err))
+};
+
+================
+File: backend/src/utils/prisma.ts
+================
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+export default prisma;
+
+================
+File: backend/src/workers/reservation.worker.ts
+================
+import Redis from 'ioredis';
+import { Queue, Worker, ConnectionOptions } from 'bullmq';
+import { logger } from '../utils/logger';
+import { ProductService } from '../services/product.service';
+
+import crypto from 'crypto';
+import { loggerContext } from '../utils/logger';
+import { RESERVATION_EXPIRATION_MS } from '../config/env';
+import prisma from '../utils/prisma';
+
+const REDIS_URL = process.env.REDIS_URL || 'redis://127.0.0.1:6379';
+export const redis = new Redis(REDIS_URL, {
+  maxRetriesPerRequest: null,
+  lazyConnect: true
+});
+redis.on('error', () => {
+  // Catch background reconnect attempt errors silently to prevent console pollution.
+});
+
+export let redisOnline = false;
+export let reservationQueue: Queue | null = null;
+export let worker: Worker | null = null;
+
+export async function initRedisAndQueue() {
+  try {
+    await redis.connect();
+    redisOnline = true;
+    logger.info('Connected to Redis. High-concurrency BullMQ worker activated.');
+
+    // We pass `redis` to BullMQ. Strict type casting avoids 'any'
+    reservationQueue = new Queue('reservations', { connection: redis as unknown as ConnectionOptions });
+
+    // Enqueue distributed cron job (runs every minute)
+    await reservationQueue.add(
+      'release_expired_reservations',
+      {},
+      { repeat: { pattern: '* * * * *' }, jobId: 'cron_release_expired' }
+    );
+
+    worker = new Worker('reservations', async (job) => {
+      const correlationId = job.data?.correlationId || crypto.randomUUID();
+      
+      return loggerContext.run({ correlationId, channelId: 'bullmq-worker' }, async () => {
+        if (job.name === 'release_expired_reservations') {
+          const released = await ProductService.releaseExpiredReservations();
+          if (released.length > 0) {
+            logger.info(`[BullMQ Cron] Released ${released.length} expired reservations.`);
+          }
+          return released;
+        }
+
+        const { userId, productId, quantity } = job.data;
+
+        await prisma.$transaction(async (tx) => {
+          const productUpdate = await tx.product.updateMany({
+            where: {
+              id: productId,
+              stock: { gte: quantity }
+            },
+            data: {
+              stock: { decrement: quantity }
+            }
+          });
+
+          if (productUpdate.count === 0) {
+            throw new Error('Race condition: Stock was depleted during execution');
+          }
+
+          await tx.reservation.create({
+            data: {
+              id: job.id!, 
+              userId,
+              productId,
+              quantity,
+              status: 'PENDING',
+              expiresAt: new Date(Date.now() + RESERVATION_EXPIRATION_MS)
+            }
+          });
+
+          await tx.inventoryLog.create({
+            data: {
+              productId,
+              change: -quantity,
+              reason: 'RESERVATION_RESERVED'
+            }
+          });
+        });
+      });
+    }, {
+      connection: redis as unknown as ConnectionOptions,
+      concurrency: 50
+    });
+
+    worker.on('error', (err: Error) => {
+      logger.error('BullMQ Worker general error:', err);
+    });
+
+    worker.on('failed', (job, err: Error) => {
+      logger.error(`BullMQ Job ${job?.id} failed: ${err.message}`, err);
+    });
+
+    // Synchronize DB stocks to Redis cache on startup
+    const dbProducts = await prisma.product.findMany();
+    for (const p of dbProducts) {
+      await redis.set(`product:${p.id}:stock`, p.stock);
+    }
+    logger.info('Redis stocks synchronized with database values.');
+
+  } catch (err: unknown) {
+    redisOnline = false;
+    reservationQueue = null;
+    worker = null;
+    logger.warn('Could not connect to Redis. Running in database-only fallback mode.');
+  }
+}
+
+================
+File: backend/tests/checkout.service.test.ts
+================
+import { CheckoutService } from '../src/services/checkout.service';
+import prisma from '../src/utils/prisma';
+import { DomainError, OutOfStockException, InvalidReservationError } from '../src/utils/errors';
+
+// Mock dependencies
+jest.mock('../src/utils/prisma', () => ({
+  __esModule: true,
+  default: {
+    reservation: {
+      create: jest.fn(),
+      update: jest.fn(),
+      findUnique: jest.fn(),
+      findUniqueOrThrow: jest.fn(),
+    },
+    inventoryLog: {
+      create: jest.fn(),
+    },
+    product: {
+      updateMany: jest.fn(),
+    },
+    order: {
+      create: jest.fn(),
+      findUnique: jest.fn(),
+    },
+    $transaction: jest.fn((callback) => callback(prisma)),
+  },
+}));
+
+describe('CheckoutService', () => {
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  describe('reserve', () => {
+    it('throws OutOfStockException if no stock is updated', async () => {
+      (prisma.product.updateMany as jest.Mock).mockResolvedValue({ count: 0 });
+
+      await expect(
+        CheckoutService.reserve('user-1', 'prod-1', 1)
+      ).rejects.toThrow(OutOfStockException);
+    });
+  });
+
+  describe('confirmCheckout', () => {
+    it('throws InvalidReservationError if P2025 is returned and no existing order', async () => {
+      (prisma.reservation.update as jest.Mock).mockRejectedValue({ code: 'P2025' });
+      (prisma.order.findUnique as jest.Mock).mockResolvedValue(null);
+
+      await expect(
+        CheckoutService.confirmCheckout('res-1')
+      ).rejects.toThrow(InvalidReservationError);
+    });
+  });
+});
+
+================
+File: backend/tests/expiration.test.ts
+================
+import { ProductService } from '../src/services/product.service';
+import prisma from '../src/utils/prisma';
+import { logger } from '../src/utils/logger';
+
+// Mock dependencies
+jest.mock('../src/utils/prisma', () => ({
+  __esModule: true,
+  default: {
+    reservation: {
+      findMany: jest.fn(),
+      update: jest.fn(),
+    },
+    product: {
+      update: jest.fn(),
+    },
+    inventoryLog: {
+      create: jest.fn(),
+    },
+    $transaction: jest.fn((callback) => callback(prisma)),
+  },
+}));
+
+jest.mock('../src/utils/logger', () => ({
+  logger: {
+    info: jest.fn(),
+    error: jest.fn(),
+  },
+}));
+
+describe('Expiration Logic (ProductService.releaseExpiredReservations)', () => {
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('does nothing if no expired reservations are found', async () => {
+    (prisma.reservation.findMany as jest.Mock).mockResolvedValue([]);
+
+    const released = await ProductService.releaseExpiredReservations();
+
+    expect(released).toEqual([]);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('releases expired reservations and restores stock', async () => {
+    const expiredReservations = [
+      { id: 'res-1', productId: 'prod-1', quantity: 1, expiresAt: new Date(Date.now() - 1000) },
+      { id: 'res-2', productId: 'prod-2', quantity: 2, expiresAt: new Date(Date.now() - 5000) },
+    ];
+    (prisma.reservation.findMany as jest.Mock).mockResolvedValue(expiredReservations);
+    
+    // Mock successful transaction responses (mock the implementations so they pass silently)
+    (prisma.reservation.update as jest.Mock).mockResolvedValue({});
+    (prisma.product.update as jest.Mock).mockResolvedValue({});
+    (prisma.inventoryLog.create as jest.Mock).mockResolvedValue({});
+
+    const released = await ProductService.releaseExpiredReservations();
+
+    expect(released).toHaveLength(2);
+    expect(released[0].id).toBe('res-1');
+    expect(prisma.reservation.findMany).toHaveBeenCalled();
+    expect(prisma.$transaction).toHaveBeenCalledTimes(2);
+    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Found 2 expired reservations to release.'));
+  });
+});
+
+================
+File: backend/tests/reservation.test.ts
+================
+import request from 'supertest';
+import app from '../src/app';
+import prisma from '../src/utils/prisma';
+import { redis, redisOnline, initRedisAndQueue } from '../src/workers/reservation.worker';
+import crypto from 'crypto';
+
+beforeAll(async () => {
+  await initRedisAndQueue();
+  
+  // Clear tables for test
+  await prisma.inventoryLog.deleteMany();
+  await prisma.order.deleteMany();
+  await prisma.reservation.deleteMany();
+  await prisma.product.deleteMany();
+  await prisma.user.deleteMany();
+});
+
+afterAll(async () => {
+  await prisma.$disconnect();
+  if (redisOnline) {
+    redis.disconnect();
+  }
+});
+
+describe('Reservation System Integration Tests', () => {
+  let testUserId: string;
+  let testProductId: string;
+
+  beforeEach(async () => {
+    // Clean tables before each test
+    await prisma.inventoryLog.deleteMany();
+    await prisma.order.deleteMany();
+    await prisma.reservation.deleteMany();
+    await prisma.product.deleteMany();
+    await prisma.user.deleteMany();
+
+    const user = await prisma.user.create({
+      data: {
+        email: `test-${Date.now()}@example.com`,
+        passwordHash: 'password123'
+      }
+    });
+    testUserId = user.id;
+  });
+
+  it('Lost Updates / Concurrency Simulation: 100 parallel requests for 10 items', async () => {
+    const INITIAL_STOCK = 10;
+    
+    const product = await prisma.product.create({
+      data: {
+        name: 'Limited Sneakers',
+        stock: INITIAL_STOCK,
+        price: 200
+      }
+    });
+    testProductId = product.id;
+
+    if (redisOnline) {
+      await redis.set(`product:${testProductId}:stock`, INITIAL_STOCK);
+    }
+
+    // Fire 100 requests in parallel
+    const NUM_REQUESTS = 100;
+    const requests = Array.from({ length: NUM_REQUESTS }).map(() => {
+      return request(app)
+        .post('/api/checkout/reserve')
+        .send({
+          userId: testUserId,
+          productId: testProductId,
+          quantity: 1,
+          idempotencyKey: crypto.randomUUID()
+        });
+    });
+
+    const responses = await Promise.all(requests);
+
+    // Count successful vs failed
+    const successful = responses.filter(r => r.status === 202);
+    const failed = responses.filter(r => r.status === 409 || r.status === 400);
+
+    // Assert that exactly INITIAL_STOCK succeeded
+    expect(successful.length).toBe(INITIAL_STOCK);
+    expect(failed.length).toBe(NUM_REQUESTS - INITIAL_STOCK);
+
+    // Assert DB stock is 0 and not negative
+    const updatedProduct = await prisma.product.findUnique({ where: { id: testProductId } });
+    expect(updatedProduct?.stock).toBe(0);
+
+    if (redisOnline) {
+      const redisStock = await redis.get(`product:${testProductId}:stock`);
+      expect(Number(redisStock)).toBe(0);
+    }
+  });
+
+  it('Idempotency: Sending 2 identical requests creates only 1 reservation', async () => {
+    const INITIAL_STOCK = 5;
+    
+    const product = await prisma.product.create({
+      data: {
+        name: 'Idempotency Test Item',
+        stock: INITIAL_STOCK,
+        price: 100
+      }
+    });
+    testProductId = product.id;
+
+    if (redisOnline) {
+      await redis.set(`product:${testProductId}:stock`, INITIAL_STOCK);
+    }
+
+    const idempotencyKey = crypto.randomUUID();
+
+    // Fire 2 identical requests in parallel with the SAME idempotency key
+    const req1 = request(app)
+      .post('/api/checkout/reserve')
+      .send({
+        userId: testUserId,
+        productId: testProductId,
+        quantity: 1,
+        idempotencyKey
+      });
+
+    const req2 = request(app)
+      .post('/api/checkout/reserve')
+      .send({
+        userId: testUserId,
+        productId: testProductId,
+        quantity: 1,
+        idempotencyKey
+      });
+
+    const [res1, res2] = await Promise.all([req1, req2]);
+
+    expect(res1.status).toBe(202);
+    expect(res2.status).toBe(202);
+    // Both responses should return the same reservation ID
+    expect(res1.body.reservations[0].id).toBe(res2.body.reservations[0].id);
+
+    // Check stock was decremented exactly ONCE
+    if (redisOnline) {
+      const redisStock = await redis.get(`product:${testProductId}:stock`);
+      expect(Number(redisStock)).toBe(INITIAL_STOCK - 1);
+    }
+  });
+});
+
+================
+File: backend/tsconfig.json
+================
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "lib": ["ES2022"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "resolveJsonModule": true
+  },
+  "include": ["src/**/*"]
+}
+
+================
+File: frontend/.env
+================
+VITE_API_URL=http://localhost:3000/api
+
+================
+File: frontend/eslint.config.js
+================
+import js from '@eslint/js'
+import globals from 'globals'
+import reactHooks from 'eslint-plugin-react-hooks'
+import reactRefresh from 'eslint-plugin-react-refresh'
+import tseslint from 'typescript-eslint'
+import { defineConfig, globalIgnores } from 'eslint/config'
+
+export default defineConfig([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      js.configs.recommended,
+      tseslint.configs.recommended,
+      reactHooks.configs.flat.recommended,
+      reactRefresh.configs.vite,
+    ],
+    languageOptions: {
+      globals: globals.browser,
+    },
+  },
+])
+
+================
+File: frontend/index.html
+================
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ssss</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
+================
+File: frontend/package.json
+================
+{
+  "name": "ssss",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@rolldown/binding-win32-x64-msvc": "^1.0.2",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/node": "^24.12.3",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "eslint": "^10.3.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.6.0",
+    "happy-dom": "^20.9.0",
+    "jsdom": "^27.0.1",
+    "typescript": "~6.0.2",
+    "typescript-eslint": "^8.59.2",
+    "vite": "^8.0.12",
+    "vitest": "^4.1.7"
+  }
+}
+
+================
+File: frontend/public/favicon.svg
+================
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="46" fill="none" viewBox="0 0 48 46"><path fill="#863bff" d="M25.946 44.938c-.664.845-2.021.375-2.021-.698V33.937a2.26 2.26 0 0 0-2.262-2.262H10.287c-.92 0-1.456-1.04-.92-1.788l7.48-10.471c1.07-1.497 0-3.578-1.842-3.578H1.237c-.92 0-1.456-1.04-.92-1.788L10.013.474c.214-.297.556-.474.92-.474h28.894c.92 0 1.456 1.04.92 1.788l-7.48 10.471c-1.07 1.498 0 3.579 1.842 3.579h11.377c.943 0 1.473 1.088.89 1.83L25.947 44.94z" style="fill:#863bff;fill:color(display-p3 .5252 .23 1);fill-opacity:1"/><mask id="a" width="48" height="46" x="0" y="0" maskUnits="userSpaceOnUse" style="mask-type:alpha"><path fill="#000" d="M25.842 44.938c-.664.844-2.021.375-2.021-.698V33.937a2.26 2.26 0 0 0-2.262-2.262H10.183c-.92 0-1.456-1.04-.92-1.788l7.48-10.471c1.07-1.498 0-3.579-1.842-3.579H1.133c-.92 0-1.456-1.04-.92-1.787L9.91.473c.214-.297.556-.474.92-.474h28.894c.92 0 1.456 1.04.92 1.788l-7.48 10.471c-1.07 1.498 0 3.578 1.842 3.578h11.377c.943 0 1.473 1.088.89 1.832L25.843 44.94z" style="fill:#000;fill-opacity:1"/></mask><g mask="url(#a)"><g filter="url(#b)"><ellipse cx="5.508" cy="14.704" fill="#ede6ff" rx="5.508" ry="14.704" style="fill:#ede6ff;fill:color(display-p3 .9275 .9033 1);fill-opacity:1" transform="matrix(.00324 1 1 -.00324 -4.47 31.516)"/></g><g filter="url(#c)"><ellipse cx="10.399" cy="29.851" fill="#ede6ff" rx="10.399" ry="29.851" style="fill:#ede6ff;fill:color(display-p3 .9275 .9033 1);fill-opacity:1" transform="matrix(.00324 1 1 -.00324 -39.328 7.883)"/></g><g filter="url(#d)"><ellipse cx="5.508" cy="30.487" fill="#7e14ff" rx="5.508" ry="30.487" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(89.814 -25.913 -14.639)scale(1 -1)"/></g><g filter="url(#e)"><ellipse cx="5.508" cy="30.599" fill="#7e14ff" rx="5.508" ry="30.599" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(89.814 -32.644 -3.334)scale(1 -1)"/></g><g filter="url(#f)"><ellipse cx="5.508" cy="30.599" fill="#7e14ff" rx="5.508" ry="30.599" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="matrix(.00324 1 1 -.00324 -34.34 30.47)"/></g><g filter="url(#g)"><ellipse cx="14.072" cy="22.078" fill="#ede6ff" rx="14.072" ry="22.078" style="fill:#ede6ff;fill:color(display-p3 .9275 .9033 1);fill-opacity:1" transform="rotate(93.35 24.506 48.493)scale(-1 1)"/></g><g filter="url(#h)"><ellipse cx="3.47" cy="21.501" fill="#7e14ff" rx="3.47" ry="21.501" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(89.009 28.708 47.59)scale(-1 1)"/></g><g filter="url(#i)"><ellipse cx="3.47" cy="21.501" fill="#7e14ff" rx="3.47" ry="21.501" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(89.009 28.708 47.59)scale(-1 1)"/></g><g filter="url(#j)"><ellipse cx=".387" cy="8.972" fill="#7e14ff" rx="4.407" ry="29.108" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(39.51 .387 8.972)"/></g><g filter="url(#k)"><ellipse cx="47.523" cy="-6.092" fill="#7e14ff" rx="4.407" ry="29.108" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(37.892 47.523 -6.092)"/></g><g filter="url(#l)"><ellipse cx="41.412" cy="6.333" fill="#47bfff" rx="5.971" ry="9.665" style="fill:#47bfff;fill:color(display-p3 .2799 .748 1);fill-opacity:1" transform="rotate(37.892 41.412 6.333)"/></g><g filter="url(#m)"><ellipse cx="-1.879" cy="38.332" fill="#7e14ff" rx="4.407" ry="29.108" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(37.892 -1.88 38.332)"/></g><g filter="url(#n)"><ellipse cx="-1.879" cy="38.332" fill="#7e14ff" rx="4.407" ry="29.108" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(37.892 -1.88 38.332)"/></g><g filter="url(#o)"><ellipse cx="35.651" cy="29.907" fill="#7e14ff" rx="4.407" ry="29.108" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(37.892 35.651 29.907)"/></g><g filter="url(#p)"><ellipse cx="38.418" cy="32.4" fill="#47bfff" rx="5.971" ry="15.297" style="fill:#47bfff;fill:color(display-p3 .2799 .748 1);fill-opacity:1" transform="rotate(37.892 38.418 32.4)"/></g></g><defs><filter id="b" width="60.045" height="41.654" x="-19.77" y="16.149" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="7.659"/></filter><filter id="c" width="90.34" height="51.437" x="-54.613" y="-7.533" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="7.659"/></filter><filter id="d" width="79.355" height="29.4" x="-49.64" y="2.03" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="e" width="79.579" height="29.4" x="-45.045" y="20.029" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="f" width="79.579" height="29.4" x="-43.513" y="21.178" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="g" width="74.749" height="58.852" x="15.756" y="-17.901" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="7.659"/></filter><filter id="h" width="61.377" height="25.362" x="23.548" y="2.284" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="i" width="61.377" height="25.362" x="23.548" y="2.284" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="j" width="56.045" height="63.649" x="-27.636" y="-22.853" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="k" width="54.814" height="64.646" x="20.116" y="-38.415" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="l" width="33.541" height="35.313" x="24.641" y="-11.323" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="m" width="54.814" height="64.646" x="-29.286" y="6.009" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="n" width="54.814" height="64.646" x="-29.286" y="6.009" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="o" width="54.814" height="64.646" x="8.244" y="-2.416" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="p" width="39.409" height="43.623" x="18.713" y="10.588" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter></defs></svg>
+
+================
+File: frontend/public/icons.svg
+================
+<svg xmlns="http://www.w3.org/2000/svg">
+  <symbol id="bluesky-icon" viewBox="0 0 16 17">
+    <g clip-path="url(#bluesky-clip)"><path fill="#08060d" d="M7.75 7.735c-.693-1.348-2.58-3.86-4.334-5.097-1.68-1.187-2.32-.981-2.74-.79C.188 2.065.1 2.812.1 3.251s.241 3.602.398 4.13c.52 1.744 2.367 2.333 4.07 2.145-2.495.37-4.71 1.278-1.805 4.512 3.196 3.309 4.38-.71 4.987-2.746.608 2.036 1.307 5.91 4.93 2.746 2.72-2.746.747-4.143-1.747-4.512 1.702.189 3.55-.4 4.07-2.145.156-.528.397-3.691.397-4.13s-.088-1.186-.575-1.406c-.42-.19-1.06-.395-2.741.79-1.755 1.24-3.64 3.752-4.334 5.099"/></g>
+    <defs><clipPath id="bluesky-clip"><path fill="#fff" d="M.1.85h15.3v15.3H.1z"/></clipPath></defs>
+  </symbol>
+  <symbol id="discord-icon" viewBox="0 0 20 19">
+    <path fill="#08060d" d="M16.224 3.768a14.5 14.5 0 0 0-3.67-1.153c-.158.286-.343.67-.47.976a13.5 13.5 0 0 0-4.067 0c-.128-.306-.317-.69-.476-.976A14.4 14.4 0 0 0 3.868 3.77C1.546 7.28.916 10.703 1.231 14.077a14.7 14.7 0 0 0 4.5 2.306q.545-.748.965-1.587a9.5 9.5 0 0 1-1.518-.74q.191-.14.372-.293c2.927 1.369 6.107 1.369 8.999 0q.183.152.372.294-.723.437-1.52.74.418.838.963 1.588a14.6 14.6 0 0 0 4.504-2.308c.37-3.911-.63-7.302-2.644-10.309m-9.13 8.234c-.878 0-1.599-.82-1.599-1.82 0-.998.705-1.82 1.6-1.82.894 0 1.614.82 1.599 1.82.001 1-.705 1.82-1.6 1.82m5.91 0c-.878 0-1.599-.82-1.599-1.82 0-.998.705-1.82 1.6-1.82.893 0 1.614.82 1.599 1.82 0 1-.706 1.82-1.6 1.82"/>
+  </symbol>
+  <symbol id="documentation-icon" viewBox="0 0 21 20">
+    <path fill="none" stroke="#aa3bff" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.35" d="m15.5 13.333 1.533 1.322c.645.555.967.833.967 1.178s-.322.623-.967 1.179L15.5 18.333m-3.333-5-1.534 1.322c-.644.555-.966.833-.966 1.178s.322.623.966 1.179l1.534 1.321"/>
+    <path fill="none" stroke="#aa3bff" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.35" d="M17.167 10.836v-4.32c0-1.41 0-2.117-.224-2.68-.359-.906-1.118-1.621-2.08-1.96-.599-.21-1.349-.21-2.848-.21-2.623 0-3.935 0-4.983.369-1.684.591-3.013 1.842-3.641 3.428C3 6.449 3 7.684 3 10.154v2.122c0 2.558 0 3.838.706 4.726q.306.383.713.671c.76.536 1.79.64 3.581.66"/>
+    <path fill="none" stroke="#aa3bff" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.35" d="M3 10a2.78 2.78 0 0 1 2.778-2.778c.555 0 1.209.097 1.748-.047.48-.129.854-.503.982-.982.145-.54.048-1.194.048-1.749a2.78 2.78 0 0 1 2.777-2.777"/>
+  </symbol>
+  <symbol id="github-icon" viewBox="0 0 19 19">
+    <path fill="#08060d" fill-rule="evenodd" d="M9.356 1.85C5.05 1.85 1.57 5.356 1.57 9.694a7.84 7.84 0 0 0 5.324 7.44c.387.079.528-.168.528-.376 0-.182-.013-.805-.013-1.454-2.165.467-2.616-.935-2.616-.935-.349-.91-.864-1.143-.864-1.143-.71-.48.051-.48.051-.48.787.051 1.2.805 1.2.805.695 1.194 1.817.857 2.268.649.064-.507.27-.857.49-1.052-1.728-.182-3.545-.857-3.545-3.87 0-.857.31-1.558.8-2.104-.078-.195-.349-1 .077-2.078 0 0 .657-.208 2.14.805a7.5 7.5 0 0 1 1.946-.26c.657 0 1.328.092 1.946.26 1.483-1.013 2.14-.805 2.14-.805.426 1.078.155 1.883.078 2.078.502.546.799 1.247.799 2.104 0 3.013-1.818 3.675-3.558 3.87.284.247.528.714.528 1.454 0 1.052-.012 1.896-.012 2.156 0 .208.142.455.528.377a7.84 7.84 0 0 0 5.324-7.441c.013-4.338-3.48-7.844-7.773-7.844" clip-rule="evenodd"/>
+  </symbol>
+  <symbol id="social-icon" viewBox="0 0 20 20">
+    <path fill="none" stroke="#aa3bff" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.35" d="M12.5 6.667a4.167 4.167 0 1 0-8.334 0 4.167 4.167 0 0 0 8.334 0"/>
+    <path fill="none" stroke="#aa3bff" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.35" d="M2.5 16.667a5.833 5.833 0 0 1 8.75-5.053m3.837.474.513 1.035c.07.144.257.282.414.309l.93.155c.596.1.736.536.307.965l-.723.73a.64.64 0 0 0-.152.531l.207.903c.164.715-.213.991-.84.618l-.872-.52a.63.63 0 0 0-.577 0l-.872.52c-.624.373-1.003.094-.84-.618l.207-.903a.64.64 0 0 0-.152-.532l-.723-.729c-.426-.43-.289-.864.306-.964l.93-.156a.64.64 0 0 0 .412-.31l.513-1.034c.28-.562.735-.562 1.012 0"/>
+  </symbol>
+  <symbol id="x-icon" viewBox="0 0 19 19">
+    <path fill="#08060d" fill-rule="evenodd" d="M1.893 1.98c.052.072 1.245 1.769 2.653 3.77l2.892 4.114c.183.261.333.48.333.486s-.068.089-.152.183l-.522.593-.765.867-3.597 4.087c-.375.426-.734.834-.798.905a1 1 0 0 0-.118.148c0 .01.236.017.664.017h.663l.729-.83c.4-.457.796-.906.879-.999a692 692 0 0 0 1.794-2.038c.034-.037.301-.34.594-.675l.551-.624.345-.392a7 7 0 0 1 .34-.374c.006 0 .93 1.306 2.052 2.903l2.084 2.965.045.063h2.275c1.87 0 2.273-.003 2.266-.021-.008-.02-1.098-1.572-3.894-5.547-2.013-2.862-2.28-3.246-2.273-3.266.008-.019.282-.332 2.085-2.38l2-2.274 1.567-1.782c.022-.028-.016-.03-.65-.03h-.674l-.3.342a871 871 0 0 1-1.782 2.025c-.067.075-.405.458-.75.852a100 100 0 0 1-.803.91c-.148.172-.299.344-.99 1.127-.304.343-.32.358-.345.327-.015-.019-.904-1.282-1.976-2.808L6.365 1.85H1.8zm1.782.91 8.078 11.294c.772 1.08 1.413 1.973 1.425 1.984.016.017.241.02 1.05.017l1.03-.004-2.694-3.766L7.796 5.75 5.722 2.852l-1.039-.004-1.039-.004z" clip-rule="evenodd"/>
+  </symbol>
+</svg>
+
+================
+File: frontend/src/App.tsx
+================
+import { useState, useEffect } from 'react';
+import Navbar from './components/Navbar';
+import CatalogPage from './pages/CatalogPage';
+import ProductPage from './pages/ProductPage';
+import AuthPage from './pages/AuthPage';
+import SuccessPage from './pages/SuccessPage';
+import { api } from './services/api';
+import type { Product } from './services/api';
+
+type Page = 'catalog' | 'product-detail' | 'auth' | 'success';
+
+export function App() {
+  const [currentPage, setCurrentPage] = useState<Page>('catalog');
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+  
+  // Auth state
+  const [user, setUser] = useState<{ id: string; email: string } | null>(null);
+
+  // Products state
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(true);
+
+  // Refresh products list
+  const fetchProducts = async () => {
+    try {
+      const data = await api.getProducts();
+      setProducts(data);
+    } catch (err) {
+      console.error('Failed to fetch products:', err);
+    } finally {
+      setLoadingProducts(false);
+    }
+  };
+
+  // Check auth and fetch products on mount
+  useEffect(() => {
+    let isMounted = true;
+    const checkAuthAndLoad = async () => {
+      const token = localStorage.getItem('token');
+      if (token) {
+        try {
+          const userProfile = await api.getMe();
+          if (isMounted) {
+            setUser({ id: userProfile.id, email: userProfile.email });
+          }
+        } catch (e) {
+          // Token expired or invalid
+          localStorage.removeItem('token');
+          if (isMounted) setUser(null);
+        }
+      }
+      if (isMounted) await fetchProducts();
+    };
+
+    checkAuthAndLoad();
+    return () => { isMounted = false; };
+  }, []);
+
+  const handleLogin = (authenticatedUser: { id: string; email: string }) => {
+    setUser(authenticatedUser);
+    // Refresh products catalog
+    fetchProducts();
+    // Redirect to catalog after login
+    setCurrentPage('catalog');
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    localStorage.removeItem('token');
+  };
+
+  const handleCheckoutSuccess = () => {
+    fetchProducts();
+    setCurrentPage('success');
+  };
+
+
+
+  return (
+    <div className="app-container">
+      {/* Universal Navigation Header */}
+      <Navbar
+        currentPage={currentPage}
+        setCurrentPage={(page: string) => setCurrentPage(page as Page)}
+        cartCount={0}
+        user={user}
+        onLogout={handleLogout}
+      />
+
+      {/* State-based Page Router */}
+      <main>
+        {loadingProducts && currentPage === 'catalog' ? (
+          <div className="glass-panel" style={{ textAlign: 'center', padding: '60px' }}>
+            <div style={{ color: 'rgba(0,0,0,0.4)' }}>Loading product catalog...</div>
+          </div>
+        ) : (
+          <>
+            {currentPage === 'catalog' && (
+              <CatalogPage
+                products={products}
+                onSelectProduct={(id) => {
+                  setSelectedProductId(id);
+                  setCurrentPage('product-detail');
+                }}
+              />
+            )}
+
+            {currentPage === 'product-detail' && selectedProductId && (
+              <ProductPage
+                productId={selectedProductId}
+                products={products}
+                onBack={() => setCurrentPage('catalog')}
+                onCheckoutSuccess={handleCheckoutSuccess}
+                isAuthenticated={!!user}
+                onRedirectToLogin={() => setCurrentPage('auth')}
+                userId={user?.id ?? null}
+              />
+            )}
+
+            {currentPage === 'auth' && (
+              <AuthPage onAuthSuccess={handleLogin} />
+            )}
+
+            {currentPage === 'success' && (
+              <SuccessPage
+                onGoToCatalog={() => {
+                  fetchProducts();
+                  setCurrentPage('catalog');
+                }}
+                userEmail={user?.email || ''}
+              />
+            )}
+          </>
+        )}
+      </main>
+    </div>
+  );
+}
+
+export default App;
+
+================
+File: frontend/src/assets/react.svg
+================
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" class="iconify iconify--logos" width="35.93" height="32" preserveAspectRatio="xMidYMid meet" viewBox="0 0 256 228"><path fill="#00D8FF" d="M210.483 73.824a171.49 171.49 0 0 0-8.24-2.597c.465-1.9.893-3.777 1.273-5.621c6.238-30.281 2.16-54.676-11.769-62.708c-13.355-7.7-35.196.329-57.254 19.526a171.23 171.23 0 0 0-6.375 5.848a155.866 155.866 0 0 0-4.241-3.917C100.759 3.829 77.587-4.822 63.673 3.233C50.33 10.957 46.379 33.89 51.995 62.588a170.974 170.974 0 0 0 1.892 8.48c-3.28.932-6.445 1.924-9.474 2.98C17.309 83.498 0 98.307 0 113.668c0 15.865 18.582 31.778 46.812 41.427a145.52 145.52 0 0 0 6.921 2.165a167.467 167.467 0 0 0-2.01 9.138c-5.354 28.2-1.173 50.591 12.134 58.266c13.744 7.926 36.812-.22 59.273-19.855a145.567 145.567 0 0 0 5.342-4.923a168.064 168.064 0 0 0 6.92 6.314c21.758 18.722 43.246 26.282 56.54 18.586c13.731-7.949 18.194-32.003 12.4-61.268a145.016 145.016 0 0 0-1.535-6.842c1.62-.48 3.21-.974 4.76-1.488c29.348-9.723 48.443-25.443 48.443-41.52c0-15.417-17.868-30.326-45.517-39.844Zm-6.365 70.984c-1.4.463-2.836.91-4.3 1.345c-3.24-10.257-7.612-21.163-12.963-32.432c5.106-11 9.31-21.767 12.459-31.957c2.619.758 5.16 1.557 7.61 2.4c23.69 8.156 38.14 20.213 38.14 29.504c0 9.896-15.606 22.743-40.946 31.14Zm-10.514 20.834c2.562 12.94 2.927 24.64 1.23 33.787c-1.524 8.219-4.59 13.698-8.382 15.893c-8.067 4.67-25.32-1.4-43.927-17.412a156.726 156.726 0 0 1-6.437-5.87c7.214-7.889 14.423-17.06 21.459-27.246c12.376-1.098 24.068-2.894 34.671-5.345a134.17 134.17 0 0 1 1.386 6.193ZM87.276 214.515c-7.882 2.783-14.16 2.863-17.955.675c-8.075-4.657-11.432-22.636-6.853-46.752a156.923 156.923 0 0 1 1.869-8.499c10.486 2.32 22.093 3.988 34.498 4.994c7.084 9.967 14.501 19.128 21.976 27.15a134.668 134.668 0 0 1-4.877 4.492c-9.933 8.682-19.886 14.842-28.658 17.94ZM50.35 144.747c-12.483-4.267-22.792-9.812-29.858-15.863c-6.35-5.437-9.555-10.836-9.555-15.216c0-9.322 13.897-21.212 37.076-29.293c2.813-.98 5.757-1.905 8.812-2.773c3.204 10.42 7.406 21.315 12.477 32.332c-5.137 11.18-9.399 22.249-12.634 32.792a134.718 134.718 0 0 1-6.318-1.979Zm12.378-84.26c-4.811-24.587-1.616-43.134 6.425-47.789c8.564-4.958 27.502 2.111 47.463 19.835a144.318 144.318 0 0 1 3.841 3.545c-7.438 7.987-14.787 17.08-21.808 26.988c-12.04 1.116-23.565 2.908-34.161 5.309a160.342 160.342 0 0 1-1.76-7.887Zm110.427 27.268a347.8 347.8 0 0 0-7.785-12.803c8.168 1.033 15.994 2.404 23.343 4.08c-2.206 7.072-4.956 14.465-8.193 22.045a381.151 381.151 0 0 0-7.365-13.322Zm-45.032-43.861c5.044 5.465 10.096 11.566 15.065 18.186a322.04 322.04 0 0 0-30.257-.006c4.974-6.559 10.069-12.652 15.192-18.18ZM82.802 87.83a323.167 323.167 0 0 0-7.227 13.238c-3.184-7.553-5.909-14.98-8.134-22.152c7.304-1.634 15.093-2.97 23.209-3.984a321.524 321.524 0 0 0-7.848 12.897Zm8.081 65.352c-8.385-.936-16.291-2.203-23.593-3.793c2.26-7.3 5.045-14.885 8.298-22.6a321.187 321.187 0 0 0 7.257 13.246c2.594 4.48 5.28 8.868 8.038 13.147Zm37.542 31.03c-5.184-5.592-10.354-11.779-15.403-18.433c4.902.192 9.899.29 14.978.29c5.218 0 10.376-.117 15.453-.343c-4.985 6.774-10.018 12.97-15.028 18.486Zm52.198-57.817c3.422 7.8 6.306 15.345 8.596 22.52c-7.422 1.694-15.436 3.058-23.88 4.071a382.417 382.417 0 0 0 7.859-13.026a347.403 347.403 0 0 0 7.425-13.565Zm-16.898 8.101a358.557 358.557 0 0 1-12.281 19.815a329.4 329.4 0 0 1-23.444.823c-7.967 0-15.716-.248-23.178-.732a310.202 310.202 0 0 1-12.513-19.846h.001a307.41 307.41 0 0 1-10.923-20.627a310.278 310.278 0 0 1 10.89-20.637l-.001.001a307.318 307.318 0 0 1 12.413-19.761c7.613-.576 15.42-.876 23.31-.876H128c7.926 0 15.743.303 23.354.883a329.357 329.357 0 0 1 12.335 19.695a358.489 358.489 0 0 1 11.036 20.54a329.472 329.472 0 0 1-11 20.722Zm22.56-122.124c8.572 4.944 11.906 24.881 6.52 51.026c-.344 1.668-.73 3.367-1.15 5.09c-10.622-2.452-22.155-4.275-34.23-5.408c-7.034-10.017-14.323-19.124-21.64-27.008a160.789 160.789 0 0 1 5.888-5.4c18.9-16.447 36.564-22.941 44.612-18.3ZM128 90.808c12.625 0 22.86 10.235 22.86 22.86s-10.235 22.86-22.86 22.86s-22.86-10.235-22.86-22.86s10.235-22.86 22.86-22.86Z"></path></svg>
+
+================
+File: frontend/src/assets/vite.svg
+================
+<svg xmlns="http://www.w3.org/2000/svg" width="77" height="47" fill="none" aria-labelledby="vite-logo-title" viewBox="0 0 77 47"><title id="vite-logo-title">Vite</title><style>.parenthesis{fill:#000}@media (prefers-color-scheme:dark){.parenthesis{fill:#fff}}</style><path fill="#9135ff" d="M40.151 45.71c-.663.844-2.02.374-2.02-.699V34.708a2.26 2.26 0 0 0-2.262-2.262H24.493c-.92 0-1.457-1.04-.92-1.788l7.479-10.471c1.07-1.498 0-3.578-1.842-3.578H15.443c-.92 0-1.456-1.04-.92-1.788l9.696-13.576c.213-.297.556-.474.92-.474h28.894c.92 0 1.456 1.04.92 1.788l-7.48 10.472c-1.07 1.497 0 3.578 1.842 3.578h11.376c.944 0 1.474 1.087.89 1.83L40.153 45.712z"/><mask id="a" width="48" height="47" x="14" y="0" maskUnits="userSpaceOnUse" style="mask-type:alpha"><path fill="#000" d="M40.047 45.71c-.663.843-2.02.374-2.02-.699V34.708a2.26 2.26 0 0 0-2.262-2.262H24.389c-.92 0-1.457-1.04-.92-1.788l7.479-10.472c1.07-1.497 0-3.578-1.842-3.578H15.34c-.92 0-1.456-1.04-.92-1.788l9.696-13.575c.213-.297.556-.474.92-.474H53.93c.92 0 1.456 1.04.92 1.788L47.37 13.03c-1.07 1.498 0 3.578 1.842 3.578h11.376c.944 0 1.474 1.088.89 1.831L40.049 45.712z"/></mask><g mask="url(#a)"><g filter="url(#b)"><ellipse cx="5.508" cy="14.704" fill="#eee6ff" rx="5.508" ry="14.704" transform="rotate(269.814 20.96 11.29)scale(-1 1)"/></g><g filter="url(#c)"><ellipse cx="10.399" cy="29.851" fill="#eee6ff" rx="10.399" ry="29.851" transform="rotate(89.814 -16.902 -8.275)scale(1 -1)"/></g><g filter="url(#d)"><ellipse cx="5.508" cy="30.487" fill="#8900ff" rx="5.508" ry="30.487" transform="rotate(89.814 -19.197 -7.127)scale(1 -1)"/></g><g filter="url(#e)"><ellipse cx="5.508" cy="30.599" fill="#8900ff" rx="5.508" ry="30.599" transform="rotate(89.814 -25.928 4.177)scale(1 -1)"/></g><g filter="url(#f)"><ellipse cx="5.508" cy="30.599" fill="#8900ff" rx="5.508" ry="30.599" transform="rotate(89.814 -25.738 5.52)scale(1 -1)"/></g><g filter="url(#g)"><ellipse cx="14.072" cy="22.078" fill="#eee6ff" rx="14.072" ry="22.078" transform="rotate(93.35 31.245 55.578)scale(-1 1)"/></g><g filter="url(#h)"><ellipse cx="3.47" cy="21.501" fill="#8900ff" rx="3.47" ry="21.501" transform="rotate(89.009 35.419 55.202)scale(-1 1)"/></g><g filter="url(#i)"><ellipse cx="3.47" cy="21.501" fill="#8900ff" rx="3.47" ry="21.501" transform="rotate(89.009 35.419 55.202)scale(-1 1)"/></g><g filter="url(#j)"><ellipse cx="14.592" cy="9.743" fill="#8900ff" rx="4.407" ry="29.108" transform="rotate(39.51 14.592 9.743)"/></g><g filter="url(#k)"><ellipse cx="61.728" cy="-5.321" fill="#8900ff" rx="4.407" ry="29.108" transform="rotate(37.892 61.728 -5.32)"/></g><g filter="url(#l)"><ellipse cx="55.618" cy="7.104" fill="#00c2ff" rx="5.971" ry="9.665" transform="rotate(37.892 55.618 7.104)"/></g><g filter="url(#m)"><ellipse cx="12.326" cy="39.103" fill="#8900ff" rx="4.407" ry="29.108" transform="rotate(37.892 12.326 39.103)"/></g><g filter="url(#n)"><ellipse cx="12.326" cy="39.103" fill="#8900ff" rx="4.407" ry="29.108" transform="rotate(37.892 12.326 39.103)"/></g><g filter="url(#o)"><ellipse cx="49.857" cy="30.678" fill="#8900ff" rx="4.407" ry="29.108" transform="rotate(37.892 49.857 30.678)"/></g><g filter="url(#p)"><ellipse cx="52.623" cy="33.171" fill="#00c2ff" rx="5.971" ry="15.297" transform="rotate(37.892 52.623 33.17)"/></g></g><path d="M6.919 0c-9.198 13.166-9.252 33.575 0 46.789h6.215c-9.25-13.214-9.196-33.623 0-46.789zm62.424 0h-6.215c9.198 13.166 9.252 33.575 0 46.789h6.215c9.25-13.214 9.196-33.623 0-46.789" class="parenthesis"/><defs><filter id="b" width="60.045" height="41.654" x="-5.564" y="16.92" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17286" stdDeviation="7.659"/></filter><filter id="c" width="90.34" height="51.437" x="-40.407" y="-6.762" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17286" stdDeviation="7.659"/></filter><filter id="d" width="79.355" height="29.4" x="-35.435" y="2.801" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17286" stdDeviation="4.596"/></filter><filter id="e" width="79.579" height="29.4" x="-30.84" y="20.8" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17286" stdDeviation="4.596"/></filter><filter id="f" width="79.579" height="29.4" x="-29.307" y="21.949" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17286" stdDeviation="4.596"/></filter><filter id="g" width="74.749" height="58.852" x="29.961" y="-17.13" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17286" stdDeviation="7.659"/></filter><filter id="h" width="61.377" height="25.362" x="37.754" y="3.055" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17286" stdDeviation="4.596"/></filter><filter id="i" width="61.377" height="25.362" x="37.754" y="3.055" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17286" stdDeviation="4.596"/></filter><filter id="j" width="56.045" height="63.649" x="-13.43" y="-22.082" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17286" stdDeviation="4.596"/></filter><filter id="k" width="54.814" height="64.646" x="34.321" y="-37.644" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17286" stdDeviation="4.596"/></filter><filter id="l" width="33.541" height="35.313" x="38.847" y="-10.552" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17286" stdDeviation="4.596"/></filter><filter id="m" width="54.814" height="64.646" x="-15.081" y="6.78" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17286" stdDeviation="4.596"/></filter><filter id="n" width="54.814" height="64.646" x="-15.081" y="6.78" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17286" stdDeviation="4.596"/></filter><filter id="o" width="54.814" height="64.646" x="22.45" y="-1.645" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17286" stdDeviation="4.596"/></filter><filter id="p" width="39.409" height="43.623" x="32.919" y="11.36" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17286" stdDeviation="4.596"/></filter></defs></svg>
+
+================
+File: frontend/src/components/CountdownTimer.tsx
+================
+import { useCountdown } from '../hooks/useCountdown';
+
+interface CountdownTimerProps {
+  expiresAt: string;
+  onExpire: () => void;
+}
+
+export function CountdownTimer({ expiresAt, onExpire }: CountdownTimerProps) {
+  const { formatted, isExpired } = useCountdown(expiresAt, onExpire);
+
+  if (isExpired) {
+    return <span className="countdown countdown--expired">Expired</span>;
+  }
+
+  return <span className="countdown countdown--active">{formatted}</span>;
+}
+
+================
+File: frontend/src/components/Navbar.tsx
+================
+import React from 'react';
+
+interface NavbarProps {
+  currentPage: string;
+  setCurrentPage: (page: string) => void;
+  cartCount: number;
+  user: { email: string } | null;
+  onLogout: () => void;
+}
+
+export const Navbar: React.FC<NavbarProps> = ({
+  currentPage,
+  setCurrentPage,
+  cartCount,
+  user,
+  onLogout
+}) => {
+  return (
+    <nav className="glass-panel navbar">
+      <div className="brand" onClick={() => setCurrentPage('catalog')}>
+        CYBER MALL
+      </div>
+      <div className="nav-links">
+        <span
+          className={`nav-link ${currentPage === 'catalog' ? 'active' : ''}`}
+          onClick={() => setCurrentPage('catalog')}
+        >
+          Catalog
+        </span>
+        <span
+          className={`nav-link ${currentPage === 'cart' ? 'active' : ''}`}
+          onClick={() => setCurrentPage('cart')}
+          style={{ position: 'relative' }}
+        >
+          {/* Cart Icon SVG */}
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <circle cx="8" cy="21" r="1" />
+            <circle cx="19" cy="21" r="1" />
+            <path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12" />
+          </svg>
+          Cart
+          {cartCount > 0 && (
+            <span
+              style={{
+                background: 'var(--primary)',
+                color: '#fff',
+                fontSize: '10px',
+                fontWeight: 700,
+                borderRadius: '50%',
+                width: '16px',
+                height: '16px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginLeft: '2px',
+                boxShadow: '0 0 8px var(--primary-glow)'
+              }}
+            >
+              {cartCount}
+            </span>
+          )}
+        </span>
+        {user ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginLeft: '10px' }}>
+            <span
+              style={{
+                fontSize: '12px',
+                background: 'rgba(255,255,255,0.05)',
+                border: '1px solid var(--border-solid)',
+                padding: '6px 12px',
+                borderRadius: '999px',
+                color: 'rgba(255,255,255,0.8)'
+              }}
+            >
+              {user.email}
+            </span>
+            <button
+              className="btn btn-secondary"
+              onClick={onLogout}
+              style={{ padding: '6px 12px', fontSize: '12px' }}
+            >
+              Logout
+            </button>
+          </div>
+        ) : (
+          <button
+            className="btn btn-accent"
+            onClick={() => setCurrentPage('auth')}
+            style={{ padding: '6px 16px', fontSize: '12px', marginLeft: '10px' }}
+          >
+            Sign In
+          </button>
+        )}
+      </div>
+    </nav>
+  );
+};
+
+export default Navbar;
+
+================
+File: frontend/src/components/ProductCard.tsx
+================
+import type { Product } from '../services/api';
+import { StockBadge } from './StockBadge';
+
+interface ProductCardProps {
+  product: Product;
+  onClick: (productId: string) => void;
+}
+
+export function ProductCard({ product, onClick }: ProductCardProps) {
+  return (
+    <div
+      className="glass-panel product-card"
+      onClick={() => onClick(product.id)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => e.key === 'Enter' && onClick(product.id)}
+    >
+      {product.badge && <div className="product-badge">{product.badge}</div>}
+      <div className="product-image-placeholder">
+        <div className="product-image-fallback">📦</div>
+      </div>
+      <h3 className="product-card-title">{product.title}</h3>
+      <div className="product-card-footer">
+        <span className="product-price">${product.price}</span>
+        <StockBadge stock={product.stock} />
+      </div>
+    </div>
+  );
+}
+
+================
+File: frontend/src/components/ReservationBanner.tsx
+================
+import { CountdownTimer } from './CountdownTimer';
+
+type BannerState =
+  | { phase: 'idle' }
+  | { phase: 'loading' }
+  | { phase: 'active'; expiresAt: string; onExpire: () => void; onCheckout: () => void }
+  | { phase: 'checking-out' }
+  | { phase: 'expired' }
+  | { phase: 'done' }
+  | { phase: 'error'; message: string };
+
+interface ReservationBannerProps {
+  state: BannerState;
+}
+
+export function ReservationBanner({ state }: ReservationBannerProps) {
+  switch (state.phase) {
+    case 'idle':
+      return null;
+    case 'loading':
+      return (
+        <div className="reservation-banner reservation-banner--loading">
+          <div className="spinner" /> Reserving...
+        </div>
+      );
+    case 'active':
+      return (
+        <div className="reservation-banner reservation-banner--active">
+          <div className="reservation-banner-content">
+            <span>Reserved! Complete checkout within:</span>
+            <CountdownTimer expiresAt={state.expiresAt} onExpire={state.onExpire} />
+          </div>
+          <button className="btn btn-primary" onClick={state.onCheckout}>Checkout Now</button>
+        </div>
+      );
+    case 'checking-out':
+      return (
+        <div className="reservation-banner reservation-banner--loading">
+          <div className="spinner" /> Processing payment...
+        </div>
+      );
+    case 'expired':
+      return (
+        <div className="reservation-banner reservation-banner--expired">
+          ⚠️ Reservation expired. Stock has been released.
+        </div>
+      );
+    case 'done':
+      return (
+        <div className="reservation-banner reservation-banner--done">
+          ✅ Order placed successfully!
+        </div>
+      );
+    case 'error':
+      return (
+        <div className="reservation-banner reservation-banner--error">
+          ❌ {state.message}
+        </div>
+      );
+  }
+}
+
+================
+File: frontend/src/components/StockBadge.tsx
+================
+interface StockBadgeProps {
+  stock: number;
+}
+
+export function StockBadge({ stock }: StockBadgeProps) {
+  const getStockInfo = () => {
+    if (stock <= 0) return { label: 'Sold Out', className: 'stock-badge stock-badge--sold-out' };
+    if (stock <= 5) return { label: `Only ${stock} left!`, className: 'stock-badge stock-badge--low' };
+    return { label: `${stock} in stock`, className: 'stock-badge stock-badge--available' };
+  };
+
+  const { label, className } = getStockInfo();
+  return <span className={className}>{label}</span>;
+}
+
+================
+File: frontend/src/hooks/__tests__/useCountdown.test.ts
+================
+// @vitest-environment happy-dom
+import { renderHook, act } from '@testing-library/react';
+import { useCountdown } from '../useCountdown';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
+
+describe('useCountdown', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.clearAllMocks();
+  });
+
+  it('formats time correctly and calls onExpire when time runs out', () => {
+    const onExpireMock = vi.fn();
+    // Set expiry 5 minutes from now
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+
+    const { result } = renderHook(() => useCountdown(expiresAt, onExpireMock));
+
+    expect(result.current.formatted).toBe('05:00');
+    expect(result.current.isExpired).toBe(false);
+
+    // Fast forward 2 minutes
+    act(() => {
+      vi.advanceTimersByTime(2 * 60 * 1000);
+    });
+
+    expect(result.current.formatted).toBe('03:00');
+    expect(result.current.isExpired).toBe(false);
+
+    // Fast forward remaining 3 minutes
+    act(() => {
+      vi.advanceTimersByTime(3 * 60 * 1000);
+    });
+
+    expect(result.current.formatted).toBe('00:00');
+    expect(result.current.isExpired).toBe(true);
+    expect(onExpireMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+================
+File: frontend/src/hooks/useCountdown.ts
+================
+import { useState, useEffect, useRef } from 'react';
+
+interface TimerResult {
+  /** Formatted time string like "04:59" */
+  formatted: string;
+  /** True when the countdown has reached 00:00 */
+  isExpired: boolean;
+  /** Remaining seconds */
+  secondsLeft: number;
+}
+
+/**
+ * Counts down from `expiresAt` (ISO string) to zero, updating every second.
+ * Calls `onExpire` exactly once when the timer reaches 00:00.
+ * Uses recursive setTimeout instead of setInterval for reliable timing.
+ */
+export function useCountdown(
+  expiresAt: string | null,
+  onExpire?: () => void
+): TimerResult {
+  const getSecondsLeft = () => {
+    if (!expiresAt) return 0;
+    const diff = Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000);
+    return Math.max(0, diff);
+  };
+
+  const [secondsLeft, setSecondsLeft] = useState<number>(getSecondsLeft);
+  const hasExpiredRef = useRef(false);
+  const onExpireRef = useRef(onExpire);
+  onExpireRef.current = onExpire;
+
+  useEffect(() => {
+    if (!expiresAt) {
+      setSecondsLeft(0);
+      hasExpiredRef.current = false;
+      return;
+    }
+
+    hasExpiredRef.current = false;
+    let isMounted = true;
+    let timeoutId: ReturnType<typeof setTimeout>;
+
+    const tick = () => {
+      if (!isMounted) return;
+
+      const secs = getSecondsLeft();
+      setSecondsLeft(secs);
+
+      if (secs <= 0 && !hasExpiredRef.current) {
+        hasExpiredRef.current = true;
+        onExpireRef.current?.();
+        return; // Stop recursion
+      }
+
+      timeoutId = setTimeout(tick, 1000);
+    };
+
+    // Immediate sync
+    setSecondsLeft(getSecondsLeft());
+    timeoutId = setTimeout(tick, 1000);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timeoutId);
+    };
+  }, [expiresAt]);
+
+  const minutes = Math.floor(secondsLeft / 60);
+  const seconds = secondsLeft % 60;
+  const formatted = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+
+  return {
+    formatted,
+    isExpired: secondsLeft <= 0 && expiresAt !== null,
+    secondsLeft,
+  };
+}
+
+================
+File: frontend/src/hooks/useProductStock.ts
+================
+import { useState, useEffect, useCallback } from 'react';
+import { api } from '../services/api';
+
+type StockState = 
+  | { status: 'idle' | 'loading'; stock: number }
+  | { status: 'success'; stock: number }
+  | { status: 'error'; stock: number; errorMessage: string };
+
+export function useProductStock(
+  productId: string | null,
+  initialStock: number,
+  intervalMs = 5000,
+  paused = false
+) {
+  const [state, setState] = useState<StockState>({ status: 'idle', stock: initialStock });
+
+  const fetchStock = useCallback(async () => {
+    if (!productId) return;
+    
+    setState(prev => ({ ...prev, status: 'loading' }));
+    try {
+      const product = await api.getProduct(productId);
+      setState({ status: 'success', stock: product.stock });
+    } catch (err: unknown) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch';
+      setState(prev => ({ ...prev, status: 'error', errorMessage }));
+    }
+  }, [productId]);
+
+  useEffect(() => {
+    if (paused || !productId) return;
+
+    let isMounted = true;
+    let timeoutId: ReturnType<typeof setTimeout>;
+
+    const poll = async () => {
+      await fetchStock();
+      if (!isMounted || paused) return;
+      // Гарантированная защита от DDOS: следующий цикл только после завершения
+      timeoutId = setTimeout(poll, intervalMs);
+    };
+
+    poll();
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timeoutId);
+    };
+  }, [productId, paused, intervalMs, fetchStock]);
+
+  return { ...state, refresh: fetchStock };
+}
+
+================
+File: frontend/src/hooks/useReservationAction.ts
+================
+import { useState, useCallback } from 'react';
+import { api } from '../services/api';
+
+export type ReservationState =
+  | { phase: 'idle' }
+  | { phase: 'reserving' }
+  | { phase: 'polling' }
+  | { phase: 'active'; reservation: { id: string; expiresAt: string } }
+  | { phase: 'checking-out'; reservation: { id: string; expiresAt: string } }
+  | { phase: 'done'; reservation: { id: string; expiresAt: string } }
+  | { phase: 'error'; errorMessage: string; isRaceCondition: boolean };
+
+export interface UseReservationActionReturn {
+  state: ReservationState;
+  reserve: (userId: string, productId: string, quantity: number) => Promise<void>;
+  checkout: () => Promise<void>;
+  reset: () => void;
+}
+
+const INITIAL_STATE: ReservationState = { phase: 'idle' };
+
+export function useReservationAction(
+  onSuccess: () => void
+): UseReservationActionReturn {
+  const [state, setState] = useState<ReservationState>(INITIAL_STATE);
+
+  const reset = useCallback(() => {
+    setState(INITIAL_STATE);
+  }, []);
+
+  const reserve = useCallback(
+    async (userId: string, productId: string, quantity: number) => {
+      setState({ phase: 'reserving' });
+      
+      try {
+        const resRecord = await api.reserve(userId, productId, quantity);
+
+        setState({ phase: 'polling' });
+
+        const startTime = Date.now();
+        const TIMEOUT_MS = 15_000;
+
+        while (true) {
+          if (Date.now() - startTime > TIMEOUT_MS) {
+            throw new Error('Reservation confirmation timed out. Please try again.');
+          }
+
+          const status = await api.pollReservationStatus(resRecord.id);
+
+          if (status.status === 'failed') {
+            throw new Error(status.error || 'Reservation failed due to stock or database error.');
+          }
+
+          if (status.status !== 'processing') {
+            break;
+          }
+
+          await new Promise((resolve) => setTimeout(resolve, 300));
+        }
+
+        setState({
+          phase: 'active',
+          reservation: { id: resRecord.id, expiresAt: resRecord.expiresAt },
+        });
+      } catch (err: unknown) {
+        let message = 'Reservation failed. Please try again.';
+        if (err instanceof Error) {
+          message = err.message;
+        } else if (typeof err === 'string') {
+          message = err;
+        }
+
+        const isRaceCondition =
+          message.toLowerCase().includes('out of stock') ||
+          message.toLowerCase().includes('409') ||
+          message.toLowerCase().includes('stock') ||
+          message.toLowerCase().includes('race condition');
+
+        setState({
+          phase: 'error',
+          errorMessage: message,
+          isRaceCondition,
+        });
+      }
+    },
+    []
+  );
+
+  const checkout = useCallback(async () => {
+    if (state.phase !== 'active' && state.phase !== 'checking-out') return;
+    
+    // capture reservation before changing state to avoid TS losing track
+    const res = state.reservation;
+
+    setState({ phase: 'checking-out', reservation: res });
+
+    try {
+      await api.confirmCheckout(res.id);
+      setState({ phase: 'done', reservation: res });
+      onSuccess();
+    } catch (err: unknown) {
+      let message = 'Checkout failed. Please try again.';
+      if (err instanceof Error) {
+        message = err.message;
+      } else if (typeof err === 'string') {
+        message = err;
+      }
+
+      setState({
+        phase: 'error',
+        errorMessage: message,
+        isRaceCondition: false,
+      });
+    }
+  }, [state, onSuccess]);
+
+  return { state, reserve, checkout, reset };
+}
+
+================
+File: frontend/src/index.css
+================
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap');
+
+:root {
+  font-family: 'Inter', sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color-scheme: light;
+  color: #1f2937;
+  background-color: #f9fafb;
+
+  --bg-color: #f9fafb;
+  --panel-bg: #ffffff;
+  --border-solid: #e5e7eb;
+  --border-hover: #d1d5db;
+
+  --primary: #4f46e5; /* Indigo */
+  --primary-hover: #4338ca;
+  --accent: #0284c7; /* Sky Blue */
+  --accent-hover: #0369a1;
+
+  --success: #10b981;
+  --error: #ef4444;
+  --warning: #f59e0b;
+
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background-color: var(--bg-color);
+  color: #1f2937;
+}
+
+h1, h2, h3, h4, h5 {
+  font-family: 'Outfit', sans-serif;
+  color: #111827;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.app-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px 20px 80px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* Simple Flat Card */
+.glass-panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--border-solid);
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s ease-in-out;
+}
+
+.glass-panel:hover {
+  border-color: var(--border-hover);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+}
+
+/* Header Navbar */
+.navbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--border-solid);
+  margin-bottom: 8px;
+}
+
+.brand {
+  font-family: 'Outfit', sans-serif;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--primary);
+  cursor: pointer;
+}
+
+.nav-links {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+}
+
+.nav-link {
+  color: #4b5563;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.nav-link:hover, .nav-link.active {
+  color: var(--primary);
+}
+
+.nav-link.active {
+  font-weight: 600;
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 9px 18px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: 1px solid transparent;
+  font-family: inherit;
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: #fff;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
+
+.btn-accent {
+  background: transparent;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.btn-accent:hover:not(:disabled) {
+  background: rgba(2, 132, 199, 0.05);
+}
+
+.btn-secondary {
+  background: #f3f4f6;
+  color: #4b5563;
+  border-color: #e5e7eb;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: #e5e7eb;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Product Catalog */
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 24px;
+}
+
+.product-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: relative;
+}
+
+.product-card-visual {
+  width: 100%;
+  aspect-ratio: 1.2;
+  background: #f3f4f6;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #4b5563;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: 'Outfit', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  position: relative;
+}
+
+.product-card-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: #e0f2fe;
+  border: 1px solid #bae6fd;
+  color: #0369a1;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.product-card-price {
+  font-family: 'Outfit', sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  color: #111827;
+}
+
+/* Forms */
+.auth-card {
+  max-width: 380px;
+  width: 100%;
+  margin: 60px auto;
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #4b5563;
+  margin-bottom: 6px;
+  letter-spacing: 0.05em;
+}
+
+.form-control {
+  width: 100%;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  padding: 10px 14px;
+  border-radius: 6px;
+  color: #111827;
+  font-size: 14px;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+
+.form-control:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.15);
+}
+
+.alert {
+  padding: 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  margin-bottom: 16px;
+  border: 1px solid transparent;
+}
+
+.alert-error {
+  background: #fef2f2;
+  border-color: #fee2e2;
+  color: var(--error);
+}
+
+.alert-success {
+  background: #ecfdf5;
+  border-color: #d1fae5;
+  color: var(--success);
+}
+
+/* Shopping Cart */
+.cart-layout {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 24px;
+}
+
+@media (max-width: 850px) {
+  .cart-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.cart-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.cart-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  background: #fff;
+  border: 1px solid var(--border-solid);
+  border-radius: 8px;
+  gap: 16px;
+}
+
+.cart-item-preview {
+  width: 60px;
+  height: 60px;
+  background: #f3f4f6;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #4b5563;
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.quantity-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 4px;
+}
+
+.qty-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  border: none;
+  background: #fff;
+  color: #4b5563;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #e5e7eb;
+}
+
+.qty-btn:hover {
+  background: #f3f4f6;
+}
+
+/* Product Detail View */
+.product-detail-layout {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 40px;
+}
+
+@media (max-width: 800px) {
+  .product-detail-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.product-detail-visual {
+  width: 100%;
+  aspect-ratio: 1;
+  background: #f3f4f6;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #4b5563;
+  font-size: 24px;
+  font-family: 'Outfit', sans-serif;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+/* Success Order Receipt */
+.receipt-card {
+  max-width: 460px;
+  margin: 40px auto;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: center;
+}
+
+.success-check-icon {
+  width: 56px;
+  height: 56px;
+  background: #ecfdf5;
+  border: 2px solid var(--success);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--success);
+}
+
+/* ──────────────────────────────────────────────────────────
+   Product Category Badge
+────────────────────────────────────────────────────────── */
+.product-category-badge {
+  display: inline-block;
+  background: rgba(79, 70, 229, 0.08);
+  border: 1px solid rgba(79, 70, 229, 0.2);
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 6px;
+  letter-spacing: 0.05em;
+}
+
+/* ──────────────────────────────────────────────────────────
+   Stock Indicator
+────────────────────────────────────────────────────────── */
+.stock-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.stock-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.stock-dot--ok   { background: var(--success); animation: pulse-green 2s infinite; }
+.stock-dot--low  { background: var(--warning); animation: pulse-amber 1.2s infinite; }
+.stock-dot--out  { background: var(--error); }
+
+.stock-label { font-size: 13px; }
+.stock-fire  { font-size: 16px; }
+
+@keyframes pulse-green {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.6; transform: scale(1.4); }
+}
+@keyframes pulse-amber {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.5; transform: scale(1.5); }
+}
+
+/* ──────────────────────────────────────────────────────────
+   Reservation Banners
+────────────────────────────────────────────────────────── */
+.reservation-banner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  animation: slide-in 0.3s ease;
+}
+
+@keyframes slide-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.reservation-banner--active {
+  background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%);
+  border-color: #a7f3d0;
+}
+
+.reservation-banner--error {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.reservation-banner--race {
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+  border-color: #fde68a;
+}
+
+.reservation-banner__icon {
+  font-size: 28px;
+  flex-shrink: 0;
+}
+
+.reservation-banner__title {
+  font-weight: 700;
+  font-size: 15px;
+  color: #111827;
+}
+
+.reservation-banner__sub {
+  font-size: 13px;
+  color: #6b7280;
+  margin-top: 2px;
+}
+
+.reservation-banner__close {
+  margin-left: auto;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #9ca3af;
+  font-size: 16px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+.reservation-banner__close:hover { background: rgba(0,0,0,0.06); color: #374151; }
+
+/* ──────────────────────────────────────────────────────────
+   Countdown Timer Ring
+────────────────────────────────────────────────────────── */
+.reservation-timer-ring {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 3px solid var(--timer-color, var(--success));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: border-color 0.5s ease;
+  animation: ring-pulse 2s ease-in-out infinite;
+}
+
+@keyframes ring-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0.25); }
+  50%       { box-shadow: 0 0 0 6px rgba(16,185,129,0); }
+}
+
+.reservation-timer-ring__text {
+  font-family: 'Outfit', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--timer-color, var(--success));
+}
+
+/* ──────────────────────────────────────────────────────────
+   Product Detail Lock Badge
+────────────────────────────────────────────────────────── */
+.reservation-lock-badge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: var(--success);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  box-shadow: 0 2px 8px rgba(16,185,129,0.4);
+  animation: badge-pop 0.3s cubic-bezier(0.34,1.56,0.64,1) both;
+}
+
+@keyframes badge-pop {
+  from { opacity: 0; transform: scale(0.7); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* ──────────────────────────────────────────────────────────
+   Reserve / Checkout Buttons
+────────────────────────────────────────────────────────── */
+.btn-reserve {
+  background: linear-gradient(135deg, var(--primary) 0%, #7c3aed 100%);
+  color: #fff;
+  border: none;
+  font-size: 15px;
+  padding: 13px 24px;
+  border-radius: 10px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  transition: all 0.2s;
+  box-shadow: 0 4px 14px rgba(79, 70, 229, 0.35);
+  width: 100%;
+}
+
+.btn-reserve:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(79, 70, 229, 0.45);
+}
+
+.btn-reserve:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-reserve:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-checkout {
+  background: linear-gradient(135deg, var(--success) 0%, #059669 100%);
+  color: #fff;
+  border: none;
+  font-size: 15px;
+  padding: 13px 24px;
+  border-radius: 10px;
+  font-weight: 600;
+  transition: all 0.2s;
+  box-shadow: 0 4px 14px rgba(16,185,129,0.35);
+  width: 100%;
+}
+
+.btn-checkout:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(16,185,129,0.45);
+}
+
+.btn-sm {
+  font-size: 12px !important;
+  padding: 6px 14px !important;
+}
+
+/* ──────────────────────────────────────────────────────────
+   Active Reservation Controls (countdown + pay)
+────────────────────────────────────────────────────────── */
+.reservation-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.countdown-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'Outfit', monospace;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  transition: color 0.5s;
+}
+
+/* ──────────────────────────────────────────────────────────
+   Loading Spinners
+────────────────────────────────────────────────────────── */
+.reservation-loading-state {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  color: #6b7280;
+  padding: 12px 0;
+}
+
+.reservation-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(79,70,229,0.2);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+.reservation-spinner--green {
+  border-color: rgba(16,185,129,0.2);
+  border-top-color: var(--success);
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+================
+File: frontend/src/main.tsx
+================
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
+import './index.css'
+import App from './App.tsx'
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+)
+
+================
+File: frontend/src/pages/AuthPage.tsx
+================
+import React, { useState, useRef, useEffect } from 'react';
+import { api, setAuthToken } from '../services/api';
+
+interface AuthPageProps {
+  onAuthSuccess: (user: { id: string; email: string }) => void;
+}
+
+export const AuthPage: React.FC<AuthPageProps> = ({ onAuthSuccess }) => {
+  const [isRegister, setIsRegister] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccess(null);
+
+    // Basic Validation
+    if (!email.includes('@')) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters long.');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      if (isRegister) {
+        // Sign Up
+        await api.register(email, password);
+        setSuccess('Account created successfully! Switching to Login...');
+        timeoutRef.current = setTimeout(() => {
+          setIsRegister(false);
+          setPassword('');
+          setSuccess(null);
+        }, 1500);
+      } else {
+        // Login
+        const data = await api.login(email, password);
+        setAuthToken(data.token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        onAuthSuccess({ id: data.user.id, email: data.user.email });
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'An error occurred during authentication.';
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="glass-panel auth-card">
+      <h2 style={{ textAlign: 'center', marginBottom: '20px' }}>
+        {isRegister ? 'Join Cyber Mall' : 'Sign In'}
+      </h2>
+
+      {error && <div className="alert alert-error">{error}</div>}
+      {success && <div className="alert alert-success">{success}</div>}
+
+      <form onSubmit={handleSubmit}>
+        <div className="form-group">
+          <label>Email Address</label>
+          <input
+            type="email"
+            className="form-control"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+          />
+        </div>
+        <div className="form-group">
+          <label>Password</label>
+          <input
+            type="password"
+            className="form-control"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="••••••••"
+          />
+        </div>
+        <button
+          type="submit"
+          className="btn btn-primary"
+          disabled={loading}
+          style={{ width: '100%', marginTop: '10px' }}
+        >
+          {loading ? 'Processing...' : (isRegister ? 'Create Account' : 'Sign In')}
+        </button>
+      </form>
+
+      <div style={{ marginTop: '20px', textAlign: 'center', fontSize: '13px', color: 'rgba(255,255,255,0.6)' }}>
+        {isRegister ? 'Already have an account?' : "Don't have an account?"}{' '}
+        <button
+          className="btn-link"
+          onClick={() => {
+            setIsRegister(!isRegister);
+            setError(null);
+            setSuccess(null);
+          }}
+        >
+          {isRegister ? 'Login Here' : 'Register Now'}
+        </button>
+      </div>
+
+      <div
+        style={{
+          marginTop: '24px',
+          paddingTop: '16px',
+          borderTop: '1px solid var(--border-solid)',
+          fontSize: '11px',
+          color: 'rgba(255,255,255,0.4)',
+          textAlign: 'center'
+        }}
+      >
+        Quick Testing Credentials:<br />
+        Email: <strong>test@example.com</strong> / Pass: <strong>Password123</strong>
+      </div>
+    </div>
+  );
+};
+
+export default AuthPage;
+
+================
+File: frontend/src/pages/CartPage.tsx
+================
+import React from 'react';
+import type { Product } from '../services/api';
+
+export interface CartItem {
+  productId: string;
+  quantity: number;
+}
+
+interface CartPageProps {
+  cartItems: CartItem[];
+  products: Product[];
+  onUpdateQuantity: (productId: string, quantity: number) => void;
+  onRemoveItem: (productId: string) => void;
+  onCheckout: () => void;
+  onGoToCatalog: () => void;
+}
+
+export const CartPage: React.FC<CartPageProps> = ({
+  cartItems,
+  products,
+  onUpdateQuantity,
+  onRemoveItem,
+  onCheckout,
+  onGoToCatalog
+}) => {
+  // Map cart items to actual products to read names, prices, etc.
+  const itemsWithDetails = cartItems
+    .map((item) => {
+      const product = products.find((p) => p.id === item.productId);
+      return {
+        ...item,
+        product
+      };
+    })
+    .filter((item) => item.product !== undefined);
+
+  // Computations
+  const subtotal = itemsWithDetails.reduce((sum, item) => {
+    return sum + (item.product?.price || 0) * item.quantity;
+  }, 0);
+
+  const shipping = subtotal > 0 ? 15.0 : 0.0;
+  const tax = subtotal * 0.08; // 8% sales tax
+  const total = subtotal + shipping + tax;
+
+  if (itemsWithDetails.length === 0) {
+    return (
+      <div className="glass-panel" style={{ textAlign: 'center', padding: '60px' }}>
+        <h3 style={{ marginBottom: '10px' }}>Your Shopping Cart is Empty</h3>
+        <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '14px', marginBottom: '20px' }}>
+          Explore our cyberpunk collection and add items to your cart.
+        </p>
+        <button className="btn btn-primary" onClick={onGoToCatalog}>
+          Go Shopping
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      <h2>Shopping Cart</h2>
+
+      <div className="cart-layout">
+        
+        {/* Left Side: Cart Items List */}
+        <div className="cart-items-list">
+          {itemsWithDetails.map((item) => (
+            <div key={item.productId} className="cart-item">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <div className="cart-item-preview">
+                  {item.product!.title.split(' ')[0]}
+                </div>
+                <div>
+                  <h4 style={{ fontSize: '16px' }}>{item.product!.title}</h4>
+                  <p style={{ fontSize: '13px', color: 'var(--accent)', marginTop: '2px' }}>
+                    ${item.product!.price.toFixed(2)} each
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+                
+                {/* Quantity adjustments */}
+                <div className="quantity-picker">
+                  <button
+                    className="qty-btn"
+                    onClick={() => onUpdateQuantity(item.productId, item.quantity - 1)}
+                    disabled={item.quantity <= 1}
+                  >
+                    -
+                  </button>
+                  <span style={{ fontSize: '14px', fontWeight: 600, minWidth: '20px', textAlign: 'center' }}>
+                    {item.quantity}
+                  </span>
+                  <button
+                    className="qty-btn"
+                    onClick={() => onUpdateQuantity(item.productId, item.quantity + 1)}
+                    disabled={item.quantity >= item.product!.stock}
+                  >
+                    +
+                  </button>
+                </div>
+
+                <div
+                  style={{
+                    fontFamily: 'Outfit',
+                    fontWeight: 700,
+                    fontSize: '16px',
+                    minWidth: '80px',
+                    textAlign: 'right'
+                  }}
+                >
+                  ${(item.product!.price * item.quantity).toFixed(2)}
+                </div>
+
+                {/* Remove button */}
+                <button
+                  onClick={() => onRemoveItem(item.productId)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'rgba(255,255,255,0.4)',
+                    cursor: 'pointer',
+                    padding: '4px',
+                    transition: 'color 0.2s'
+                  }}
+                  title="Remove item"
+                  onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--error)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = 'rgba(255,255,255,0.4)')}
+                >
+                  {/* Trash Icon */}
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <polyline points="3 6 5 6 21 6" />
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                    <line x1="10" y1="11" x2="10" y2="17" />
+                    <line x1="14" y1="11" x2="14" y2="17" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Right Side: Order Summary Panel */}
+        <div className="glass-panel" style={{ height: 'fit-content', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <h3 style={{ borderBottom: '1px solid var(--border-solid)', paddingBottom: '10px' }}>
+            Order Summary
+          </h3>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '14px', color: 'rgba(255,255,255,0.7)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span>Subtotal</span>
+              <span style={{ color: '#fff' }}>${subtotal.toFixed(2)}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span>Estimated Shipping</span>
+              <span style={{ color: '#fff' }}>${shipping.toFixed(2)}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span>Sales Tax (8%)</span>
+              <span style={{ color: '#fff' }}>${tax.toFixed(2)}</span>
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              fontFamily: 'Outfit',
+              fontSize: '20px',
+              fontWeight: 700,
+              borderTop: '1px solid var(--border-solid)',
+              paddingTop: '16px',
+              marginTop: '4px'
+            }}
+          >
+            <span>Total</span>
+            <span style={{ color: 'var(--accent)' }}>${total.toFixed(2)}</span>
+          </div>
+
+          <button
+            className="btn btn-primary"
+            onClick={onCheckout}
+            style={{ width: '100%', marginTop: '10px', padding: '12px' }}
+          >
+            Proceed to Checkout
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default CartPage;
+
+================
+File: frontend/src/pages/CatalogPage.tsx
+================
+import React, { useState } from 'react';
+import type { Product } from '../services/api';
+
+interface CatalogPageProps {
+  products: Product[];
+  onSelectProduct: (productId: string) => void;
+}
+
+export const CatalogPage: React.FC<CatalogPageProps> = ({ products, onSelectProduct }) => {
+  const [search, setSearch] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('All');
+
+  // Categories list
+  const categories = ['All', 'Footwear', 'Accessories', 'Apparel', 'Bags'];
+
+  // Filtering products
+  const filteredProducts = products.filter((product) => {
+    const matchesSearch = product.title.toLowerCase().includes(search.toLowerCase()) || 
+                          product.description.toLowerCase().includes(search.toLowerCase());
+    const matchesCategory = selectedCategory === 'All' || product.category === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      
+      {/* Filtering and search controls */}
+      <div
+        className="glass-panel"
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '16px',
+          flexWrap: 'wrap'
+        }}
+      >
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          {categories.map((category) => (
+            <button
+              key={category}
+              className={`btn ${selectedCategory === category ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => setSelectedCategory(category)}
+              style={{ padding: '8px 16px', fontSize: '13px' }}
+            >
+              {category}
+            </button>
+          ))}
+        </div>
+        <div style={{ flex: 1, minWidth: '240px', maxWidth: '360px' }}>
+          <input
+            type="text"
+            className="form-control"
+            placeholder="Search items..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+      </div>
+
+      {/* Products Grid */}
+      {filteredProducts.length === 0 ? (
+        <div className="glass-panel" style={{ padding: '60px', textAlign: 'center', color: 'rgba(255,255,255,0.4)' }}>
+          No products matched your filters.
+        </div>
+      ) : (
+        <div className="product-grid">
+          {filteredProducts.map((product) => (
+            <div key={product.id} className="glass-panel product-card">
+              <div className="product-card-visual">
+                <span className="product-card-badge">{product.badge}</span>
+                {product.title.split(' ')[0]}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <h3 style={{ fontSize: '18px' }}>{product.title}</h3>
+                <p
+                  style={{
+                    fontSize: '12px',
+                    color: 'rgba(255,255,255,0.5)',
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    height: '36px'
+                  }}
+                >
+                  {product.description}
+                </p>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+                <div className="product-card-price">${product.price.toFixed(2)}</div>
+                <div style={{ fontSize: '11px', color: product.stock > 0 ? 'var(--success)' : 'var(--error)' }}>
+                  {product.stock > 0 ? `${product.stock} left` : 'Sold Out'}
+                </div>
+              </div>
+              <button
+                className="btn btn-primary"
+                onClick={() => onSelectProduct(product.id)}
+                style={{ width: '100%' }}
+              >
+                View Details
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default CatalogPage;
+
+================
+File: frontend/src/pages/ProductPage.tsx
+================
+import React, { useState } from 'react';
+import type { Product } from '../services/api';
+import { useProductStock } from '../hooks/useProductStock';
+import { useCountdown } from '../hooks/useCountdown';
+import { useReservationAction } from '../hooks/useReservationAction';
+
+interface ProductPageProps {
+  productId: string;
+  products: Product[];
+  onBack: () => void;
+  onCheckoutSuccess: () => void;
+  isAuthenticated: boolean;
+  onRedirectToLogin: () => void;
+  userId: string | null;
+}
+
+export const ProductPage: React.FC<ProductPageProps> = ({
+  productId,
+  products,
+  onBack,
+  onCheckoutSuccess,
+  isAuthenticated,
+  onRedirectToLogin,
+  userId,
+}) => {
+  const product = products.find((p) => p.id === productId);
+
+  const { state, reserve, checkout, reset } = useReservationAction(onCheckoutSuccess);
+
+  const isReservationActive = state.phase === 'active' || state.phase === 'checking-out';
+  const reservation = 'reservation' in state ? state.reservation : null;
+
+  const { stock } = useProductStock(
+    product?.id ?? null,
+    product?.stock ?? 0,
+    5000,
+    isReservationActive // pause polling while a reservation is active
+  );
+
+  const { formatted: timerFormatted, isExpired } = useCountdown(
+    reservation?.expiresAt ?? null,
+    () => {
+      // Timer expired — reset back to idle so the user can try again
+      reset();
+    }
+  );
+
+  const [quantity, setQuantity] = useState(1);
+
+  // Derive urgency colour for the countdown ring
+  const timerPercentage = reservation
+    ? Math.max(0, (new Date(reservation.expiresAt).getTime() - Date.now()) / (5 * 60 * 1000)) * 100
+    : 100;
+  const timerColour =
+    timerPercentage > 40 ? 'var(--success)' : timerPercentage > 15 ? 'var(--warning)' : 'var(--error)';
+
+  const handleReserve = () => {
+    if (!isAuthenticated) {
+      onRedirectToLogin();
+      return;
+    }
+    if (!product || !userId) return;
+    reserve(userId, product.id, quantity);
+  };
+
+  if (!product) {
+    return (
+      <div className="glass-panel" style={{ textAlign: 'center', padding: '60px' }}>
+        <h3>Product not found</h3>
+        <button className="btn btn-secondary" onClick={onBack} style={{ marginTop: '16px' }}>
+          Back to Catalog
+        </button>
+      </div>
+    );
+  }
+
+  const isBusy = state.phase === 'reserving' || state.phase === 'polling' || state.phase === 'checking-out';
+  const stockIsLow = stock > 0 && stock <= 5;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      {/* Back button */}
+      <div>
+        <button className="btn btn-secondary" onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="19" y1="12" x2="5" y2="12" /><polyline points="12 19 5 12 12 5" />
+          </svg>
+          Back to Catalog
+        </button>
+      </div>
+
+      {/* ── Error / Race condition banner ────────────────────────────── */}
+      {state.phase === 'error' && state.errorMessage && (
+        <div className={`reservation-banner reservation-banner--error ${state.isRaceCondition ? 'reservation-banner--race' : ''}`}>
+          <div className="reservation-banner__icon">
+            {state.isRaceCondition ? '⚡' : '✕'}
+          </div>
+          <div>
+            <div className="reservation-banner__title">
+              {state.isRaceCondition ? 'Race Condition — Sold Out' : 'Reservation Failed'}
+            </div>
+            <div className="reservation-banner__sub">{state.errorMessage}</div>
+          </div>
+          <button className="reservation-banner__close" onClick={reset}>✕</button>
+        </div>
+      )}
+
+      {/* ── Active Reservation Banner ─────────────────────────────────── */}
+      {isReservationActive && !isExpired && (
+        <div className="reservation-banner reservation-banner--active">
+          <div className="reservation-timer-ring" style={{ '--timer-color': timerColour } as React.CSSProperties}>
+            <span className="reservation-timer-ring__text">{timerFormatted}</span>
+          </div>
+          <div>
+            <div className="reservation-banner__title">Item Reserved!</div>
+            <div className="reservation-banner__sub">
+              Complete payment before the timer expires — your slot is locked.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Main product detail card ──────────────────────────────────── */}
+      <div className="glass-panel product-detail-layout">
+
+        {/* Visual */}
+        <div className="product-detail-visual" style={isReservationActive ? { boxShadow: `0 0 40px ${timerColour}55` } : {}}>
+          {isReservationActive && (
+            <div className="reservation-lock-badge">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M17 11H7V7a5 5 0 0 1 10 0v4zm2 0V7A7 7 0 0 0 5 7v4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2z"/>
+              </svg>
+              Reserved
+            </div>
+          )}
+          {product.title.split(' ')[0]}
+        </div>
+
+        {/* Info panel */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div>
+            <span className="product-category-badge">{product.category}</span>
+            <h2 style={{ fontSize: '32px', marginTop: '12px' }}>{product.title}</h2>
+            <div className="product-card-price" style={{ fontSize: '28px', marginTop: '8px', color: 'var(--accent)' }}>
+              ${product.price.toFixed(2)}
+            </div>
+          </div>
+
+          <div style={{ borderTop: '1px solid var(--border-solid)', paddingTop: '16px' }}>
+            <h4 style={{ marginBottom: '8px' }}>Description</h4>
+            <p style={{ color: 'rgba(0,0,0,0.55)', fontSize: '14px', lineHeight: '1.6' }}>
+              {product.description}
+            </p>
+          </div>
+
+          <div>
+            <h4 style={{ marginBottom: '8px' }}>Technical Specs</h4>
+            <ul style={{
+              listStyle: 'none', padding: 0,
+              display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px',
+              fontSize: '13px', color: 'rgba(0,0,0,0.45)'
+            }}>
+              {product.specs.map((spec, i) => (
+                <li key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ color: 'var(--accent)' }}>•</span> {spec}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* ── Stock + Action area ─────────────────────────────────────── */}
+          <div style={{
+            borderTop: '1px solid var(--border-solid)', paddingTop: '20px',
+            display: 'flex', flexDirection: 'column', gap: '16px'
+          }}>
+            {/* Stock indicator */}
+            <div className="stock-indicator">
+              <div className={`stock-dot ${stock === 0 ? 'stock-dot--out' : stockIsLow ? 'stock-dot--low' : 'stock-dot--ok'}`} />
+              <span className="stock-label" style={{ color: stock === 0 ? 'var(--error)' : stockIsLow ? 'var(--warning)' : 'var(--success)' }}>
+                {stock === 0 ? 'Out of Stock' : stockIsLow ? `Only ${stock} left — hurry!` : `${stock} in stock`}
+              </span>
+              {stockIsLow && stock > 0 && (
+                <span className="stock-fire">🔥</span>
+              )}
+            </div>
+
+            {/* ── IDLE / ERROR: show Reserve button ──────────────────── */}
+            {(state.phase === 'idle' || state.phase === 'error') && (
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                {stock > 0 && (
+                  <div style={{ width: '80px', flexShrink: 0 }}>
+                    <select
+                      className="form-control"
+                      value={quantity}
+                      onChange={(e) => setQuantity(parseInt(e.target.value))}
+                      disabled={isBusy}
+                    >
+                      {Array.from({ length: Math.min(5, stock) }).map((_, i) => (
+                        <option key={i + 1} value={i + 1}>
+                          {i + 1}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                <button
+                  id="reserve-btn"
+                  className="btn btn-reserve"
+                  onClick={handleReserve}
+                  disabled={stock === 0 || isBusy}
+                  style={{ flex: 1 }}
+                >
+                  {stock === 0 ? 'Out of Stock' : (
+                    <>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                      </svg>
+                      Забронировать (Reserve for 5 min)
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+
+            {/* ── RESERVING / POLLING: spinner ────────────────────────── */}
+            {(state.phase === 'reserving' || state.phase === 'polling') && (
+              <div className="reservation-loading-state">
+                <div className="reservation-spinner" />
+                <span>{state.phase === 'reserving' ? 'Sending reservation…' : 'Confirming with server…'}</span>
+              </div>
+            )}
+
+            {/* ── ACTIVE: countdown + checkout button ─────────────────── */}
+            {state.phase === 'active' && !isExpired && (
+              <div className="reservation-controls">
+                <div className="countdown-display" style={{ color: timerColour }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                  </svg>
+                  {timerFormatted}
+                </div>
+                <button
+                  id="checkout-btn"
+                  className="btn btn-checkout"
+                  onClick={checkout}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12"/>
+                  </svg>
+                  Оформить заказ (Pay Now)
+                </button>
+                <button className="btn btn-secondary btn-sm" onClick={reset} style={{ marginTop: '4px', fontSize: '12px' }}>
+                  Cancel Reservation
+                </button>
+              </div>
+            )}
+
+            {/* ── CHECKING-OUT: spinner ───────────────────────────────── */}
+            {state.phase === 'checking-out' && (
+              <div className="reservation-loading-state">
+                <div className="reservation-spinner reservation-spinner--green" />
+                <span>Processing payment…</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default ProductPage;
+
+================
+File: frontend/src/pages/SuccessPage.tsx
+================
+import React, { useState } from 'react';
+
+interface SuccessPageProps {
+  onGoToCatalog: () => void;
+  userEmail: string;
+}
+
+export const SuccessPage: React.FC<SuccessPageProps> = ({ onGoToCatalog, userEmail }) => {
+  // Generate a random simulated order ID — stable across re-renders
+  const [orderId] = useState(() => `ORD-${Math.floor(100000 + Math.random() * 900000)}`);
+
+  return (
+    <div className="glass-panel receipt-card">
+      <div className="success-check-icon">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="32"
+          height="32"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+      </div>
+
+      <h2 style={{ fontSize: '28px', color: 'var(--success)' }}>Order Placed!</h2>
+      <p style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '14px', maxWidth: '340px' }}>
+        Thank you for shopping at Cyber Mall. Your payment was approved, and your order has been received.
+      </p>
+
+      <div
+        style={{
+          width: '100%',
+          background: 'rgba(0, 0, 0, 0.2)',
+          border: '1px solid var(--border-solid)',
+          borderRadius: '12px',
+          padding: '16px',
+          margin: '10px 0',
+          textAlign: 'left',
+          fontSize: '13px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '12px'
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <span style={{ color: 'rgba(255,255,255,0.4)' }}>Order Number</span>
+          <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{orderId}</span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <span style={{ color: 'rgba(255,255,255,0.4)' }}>Account</span>
+          <span>{userEmail}</span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <span style={{ color: 'rgba(255,255,255,0.4)' }}>Delivery Estimate</span>
+          <span style={{ color: 'var(--accent)', fontWeight: 600 }}>2-3 Business Days</span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <span style={{ color: 'rgba(255,255,255,0.4)' }}>Shipping Carrier</span>
+          <span>HyperLoop Logistics</span>
+        </div>
+      </div>
+
+      <button className="btn btn-primary" onClick={onGoToCatalog} style={{ width: '100%', marginTop: '8px' }}>
+        Continue Shopping
+      </button>
+    </div>
+  );
+};
+
+export default SuccessPage;
+
+================
+File: frontend/src/services/__tests__/api.test.ts
+================
+import { apiFetch, ApiError } from '../api';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
+
+describe('apiFetch error handling', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn());
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('throws ApiError on non-ok HTTP responses', async () => {
+    const mockResponse = {
+      ok: false,
+      status: 400,
+      json: vi.fn().mockResolvedValue({ error: 'Bad Request' }),
+    };
+    (globalThis.fetch as any).mockResolvedValue(mockResponse);
+
+    await expect(apiFetch('/test')).rejects.toThrow(ApiError);
+    await expect(apiFetch('/test')).rejects.toThrow('Bad Request');
+  });
+
+  it('throws timeout ApiError when AbortError occurs', async () => {
+    const abortError = new DOMException('Aborted', 'AbortError');
+    (globalThis.fetch as any).mockRejectedValue(abortError);
+
+    await expect(apiFetch('/test')).rejects.toThrow(ApiError);
+    await expect(apiFetch('/test')).rejects.toThrow('Request timed out');
+  });
+
+  it('throws network ApiError on TypeError', async () => {
+    const typeError = new TypeError('Failed to fetch');
+    (globalThis.fetch as any).mockRejectedValue(typeError);
+
+    await expect(apiFetch('/test')).rejects.toThrow(ApiError);
+    await expect(apiFetch('/test')).rejects.toThrow('Network error: server unreachable');
+  });
+});
+
+================
+File: frontend/src/services/api.ts
+================
+// Vite использует import.meta.env для инъекции переменных окружения при сборке
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+
+export class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
+// Кеширование токена в памяти (в замыкании)
+let cachedToken: string | null = null;
+
+export function setAuthToken(token: string) {
+  cachedToken = token;
+  localStorage.setItem('token', token);
+}
+
+function getHeaders(authRequired = true): HeadersInit {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  
+  if (authRequired) {
+    const token = cachedToken || localStorage.getItem('token');
+    if (token) {
+      cachedToken = token; // Обновляем кеш в памяти для следующих запросов
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+  }
+  return headers;
+}
+
+/**
+ * Centralized fetch wrapper to handle timeouts, network failures, 
+ * and invalid JSON responses gracefully.
+ */
+export async function apiFetch<T>(endpoint: string, options: RequestInit = {}, timeoutMs = 10000): Promise<T> {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const res = await fetch(`${API_URL}${endpoint}`, {
+      ...options,
+      signal: controller.signal
+    });
+
+    let data: Record<string, unknown>;
+    try {
+      data = await res.json();
+    } catch (_e) {
+      throw new ApiError('Invalid response from server.', res.status);
+    }
+
+    if (!res.ok) {
+      const errorMessage = typeof data.error === 'string' ? data.error : `Server error: ${res.status}`;
+      throw new ApiError(errorMessage, res.status);
+    }
+
+    return data as T;
+  } catch (error: unknown) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new ApiError('Request timed out', 408);
+    }
+    throw error;
+  } finally {
+    clearTimeout(id);
+  }
+}
+
+export interface User {
+  id: string;
+  email: string;
+}
+
+export interface Product {
+  id: string;
+  title: string;
+  description: string;
+  price: number;
+  stock: number;
+  badge: string;
+  category: string;
+  specs: string[];
+}
+
+export interface Reservation {
+  id: string;
+  expiresAt: string;
+}
+
+export const api = {
+  // Auth API
+  async register(email: string, password: string): Promise<{ token: string; user: User }> {
+    return apiFetch('/auth/register', {
+      method: 'POST',
+      headers: getHeaders(false),
+      body: JSON.stringify({ email, password })
+    });
+  },
+
+  async login(email: string, password: string): Promise<{ token: string; user: User }> {
+    return apiFetch('/auth/login', {
+      method: 'POST',
+      headers: getHeaders(false),
+      body: JSON.stringify({ email, password })
+    });
+  },
+
+  async getMe(): Promise<User> {
+    return apiFetch('/auth/me', {
+      method: 'GET',
+      headers: getHeaders(true)
+    });
+  },
+
+  // Products API
+  async getProducts(): Promise<Product[]> {
+    return apiFetch('/products', {
+      method: 'GET',
+      headers: getHeaders(false)
+    });
+  },
+
+  async getProduct(id: string): Promise<Product> {
+    return apiFetch(`/products/${id}`, {
+      method: 'GET',
+      headers: getHeaders(false)
+    });
+  },
+
+  // Checkout API
+  async reserve(userId: string, productId: string, quantity: number): Promise<Reservation> {
+    // Клиент обязан сам генерировать idempotencyKey для каждого нового бизнес-намерения
+    const idempotencyKey = crypto.randomUUID(); 
+    
+    const data = await apiFetch<{ message: string; reservations: Reservation[] }>('/checkout/reserve', {
+      method: 'POST',
+      headers: getHeaders(true),
+      body: JSON.stringify({ userId, productId, quantity, idempotencyKey })
+    });
+    return data.reservations[0]; // Assuming it returns an array but we need one
+  },
+
+  async confirmCheckout(reservationId: string): Promise<{ success: boolean }> {
+    return apiFetch('/checkout', {
+      method: 'POST',
+      headers: getHeaders(true),
+      body: JSON.stringify({ reservationId })
+    });
+  },
+
+  async pollReservationStatus(id: string): Promise<{ status: string; reservation?: Reservation; error?: string }> {
+    return apiFetch(`/checkout/status/${id}`, {
+      method: 'GET',
+      headers: getHeaders(true)
+    });
+  }
+};
+
+================
+File: frontend/tsconfig.app.json
+================
+{
+  "compilerOptions": {
+    "strict": true,
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
+    "target": "es2023",
+    "lib": ["ES2023", "DOM"],
+    "module": "esnext",
+    "types": ["vite/client"],
+    "skipLibCheck": true,
+
+    /* Bundler mode */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "jsx": "react-jsx",
+
+    /* Linting */
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "erasableSyntaxOnly": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["src"]
+}
+
+================
+File: frontend/tsconfig.json
+================
+{
+  "files": [],
+  "references": [
+    { "path": "./tsconfig.app.json" },
+    { "path": "./tsconfig.node.json" }
+  ]
+}
+
+================
+File: frontend/tsconfig.node.json
+================
+{
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
+    "target": "es2023",
+    "lib": ["ES2023"],
+    "module": "esnext",
+    "types": ["node"],
+    "skipLibCheck": true,
+
+    /* Bundler mode */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+
+    /* Linting */
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "erasableSyntaxOnly": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["vite.config.ts"]
+}
+
+================
+File: frontend/vite.config.ts
+================
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+// https://vite.dev/config/
+export default defineConfig({
+  plugins: [react()],
+})
+
+================
+File: package.json
+================
+{
+  "name": "ssss-root",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev -w backend\" \"npm run dev -w frontend\"",
+    "build": "npm run build -w backend && npm run build -w frontend"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
+
+================
+File: README.md
+================
+# React + TypeScript + Vite
+
+This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+
+Currently, two official plugins are available:
+
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+
+## React Compiler
+
+The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+
+## Expanding the ESLint configuration
+
+If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+
+```js
+export default defineConfig([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      // Other configs...
+
+      // Remove tseslint.configs.recommended and replace with this
+      tseslint.configs.recommendedTypeChecked,
+      // Alternatively, use this for stricter rules
+      tseslint.configs.strictTypeChecked,
+      // Optionally, add this for stylistic rules
+      tseslint.configs.stylisticTypeChecked,
+
+      // Other configs...
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: ['./tsconfig.node.json', './tsconfig.app.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+      // other options...
+    },
+  },
+])
+```
+
+You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+
+```js
+// eslint.config.js
+import reactX from 'eslint-plugin-react-x'
+import reactDom from 'eslint-plugin-react-dom'
+
+export default defineConfig([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      // Other configs...
+      // Enable lint rules for React
+      reactX.configs['recommended-typescript'],
+      // Enable lint rules for React DOM
+      reactDom.configs.recommended,
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: ['./tsconfig.node.json', './tsconfig.app.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+      // other options...
+    },
+  },
+])
+```
+
+
+
+
+
+================================================================
+End of Codebase
+================================================================
