@@ -73,7 +73,15 @@ app.get('/api/admin/inventory-logs',
   }
 );
 
+import path from 'path';
+
 // Global Error Handling Middleware
 app.use(errorHandler);
+
+// Serve frontend static files in production
+app.use(express.static(path.join(__dirname, '../../frontend/dist')));
+app.get('*', (req: Request, res: Response) => {
+  res.sendFile(path.join(__dirname, '../../frontend/dist/index.html'));
+});
 
 export default app;
