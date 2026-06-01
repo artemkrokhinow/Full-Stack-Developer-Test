@@ -1,21 +1,28 @@
 version: '3.8'
 
 services:
-  postgres:
+  db:
     image: postgres:15
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgrespassword
-      POSTGRES_DB: reservation_db
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: limited_drop
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data
 
-  redis:
-    image: redis:7
+  app:
+    build:
+      context: .
     ports:
-      - "6379:6379"
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgresql://user:password@db:5432/limited_drop?schema=public
+      - JWT_SECRET=testsecret
+      - CORS_ORIGIN=http://localhost:3000
+    depends_on:
+      - db
 
 volumes:
-  postgres_data:
+  pgdata:

@@ -1,5 +1,5 @@
 // Vite использует import.meta.env для инъекции переменных окружения при сборке
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 export class ApiError extends Error {
   status: number;
