@@ -29,30 +29,39 @@ This atomic update leverages an implicit **pessimistic row-level lock** (cursor 
 
 ---
 
-## How to run locally
+## How to run locally (Docker Monolith)
 
-### 1. Database & Backend
-Ensure you have a PostgreSQL database running.
+We have containerized the entire stack for a true "one-click" experience. The frontend, backend, and database are orchestrated together. The backend is configured to statically serve the compiled React frontend, effectively making them a monolith running on a single port.
+
+1. Make sure Docker Desktop is running.
+2. Open your terminal in the root folder and run:
+```bash
+docker-compose up --build
+```
+3. That's it! 
+   - Docker will download PostgreSQL.
+   - It will build the frontend, build the backend, and package them together.
+   - Upon startup, the container automatically migrates the database (`prisma db push`) and seeds it with test products (`prisma db seed`).
+   - Open your browser to **http://localhost:3000**.
+
+### Run Concurrency Test
+To prove that overselling is impossible, you can run the automated concurrency test (spawns 100 parallel requests) locally:
 ```bash
 cd backend
 npm install
-# Set DATABASE_URL and JWT_SECRET in .env
-npm run build
-npm run db:seed
-npm start
-```
-
-### 2. Frontend
-```bash
-cd frontend
-npm install
-# Set VITE_API_URL in .env (e.g. http://localhost:3000/api)
-npm run dev
-```
-
-### 3. Run Concurrency Test
-To prove that overselling is impossible, run the automated concurrency test (spawns 100 parallel requests):
-```bash
-cd backend
 npm run test:concurrency
 ```
+
+---
+
+## Deployment (Render / Railway / Pxxl)
+
+Because this repository uses a unified Dockerfile that packages both the React frontend and Node.js backend into a single container, deployment is incredibly simple:
+
+1. Create a new **Web Service**.
+2. Select **Docker** as the deployment type.
+3. Configure the following environment variables:
+   - `DATABASE_URL`: Your production PostgreSQL connection string.
+   - `JWT_SECRET`: A secure random string for signing auth tokens.
+4. (Optional) Set the Build/Root Directory to `/` or leave it empty.
+5. Deploy. The platform will read the root `Dockerfile`, build both apps, and route all web traffic to port 3000 automatically. No CORS issues, no separate frontend deployment needed.
