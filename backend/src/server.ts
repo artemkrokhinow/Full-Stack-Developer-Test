@@ -9,7 +9,7 @@ async function startServer() {
   // Инициализация симуляции cron в рамках одного процесса (согласно ТЗ для Render)
   startInternalScheduler();
 
-  const server = app.listen(Number(PORT), '0.0.0.0', () => {
+  const server = app.listen(Number(PORT), () => {
     logger.info(`Backend server is running on http://0.0.0.0:${PORT}`);
   });
 
