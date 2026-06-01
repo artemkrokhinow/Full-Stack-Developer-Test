@@ -9,6 +9,9 @@ WORKDIR /app
 COPY backend/package*.json ./backend/
 COPY frontend/package*.json ./frontend/
 
+# Copy prisma schema so postinstall script works
+COPY backend/prisma ./backend/prisma/
+
 # Install dependencies
 RUN cd backend && npm install
 RUN cd frontend && npm install
