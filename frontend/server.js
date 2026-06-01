@@ -1,1 +1,24 @@
-import express from 'express';\nimport path from 'path';\nimport { fileURLToPath } from 'url';\n\nconst __filename = fileURLToPath(import.meta.url);\nconst __dirname = path.dirname(__filename);\n\nconst app = express();\nconst PORT = process.env.PORT || 3000;\n\n// Serve static files from the React build directory\napp.use(express.static(path.join(__dirname, 'dist')));\n\n// Health check endpoint for PaaS orchestrators\napp.get('/health', (req, res) => res.status(200).send('OK'));\n\n// Handle client-side routing, return all requests to React app\napp.get('*', (req, res) => {\n  res.sendFile(path.join(__dirname, 'dist', 'index.html'));\n});\n\napp.listen(Number(PORT), '0.0.0.0', () => {\n  console.log(`Production frontend server is running on port ${PORT}`);\n});
+import express from 'express';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Serve static files from the React build directory
+app.use(express.static(path.join(__dirname, 'dist')));
+
+// Health check endpoint for PaaS orchestrators
+app.get('/health', (req, res) => res.status(200).send('OK'));
+
+// Handle client-side routing, return all requests to React app
+app.use((req, res) => {
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+});
+
+app.listen(Number(PORT), '0.0.0.0', () => {
+  console.log(`Production frontend server is running on port ${PORT}`);
+});
