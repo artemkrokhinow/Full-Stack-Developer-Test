@@ -15,8 +15,8 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({ products, onSelectProd
 
   // Filtering products
   const filteredProducts = products.filter((product) => {
-    const matchesSearch = product.name.toLowerCase().includes(search.toLowerCase()) || 
-                          product.description.toLowerCase().includes(search.toLowerCase());
+    const matchesSearch = product.name?.toLowerCase().includes(search.toLowerCase()) || 
+                          (product.description || '').toLowerCase().includes(search.toLowerCase());
     const matchesCategory = selectedCategory === 'All' || product.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });

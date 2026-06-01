@@ -25,7 +25,7 @@ export interface PaginatedResult<T> {
 
 export interface FormattedProduct {
   id: string;
-  title: string;
+  name: string;
   price: number;
   stock: number;
   category: string;
@@ -37,7 +37,7 @@ export class ProductService {
   static formatProduct(p: Product): FormattedProduct {
     return {
       id: p.id,
-      title: p.name,
+      name: p.name,
       price: p.price / 100,
       stock: p.stock,
       category: p.category,
