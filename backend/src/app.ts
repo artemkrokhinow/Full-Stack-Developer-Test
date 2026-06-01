@@ -75,10 +75,8 @@ app.get('/api/admin/inventory-logs',
 // Global Error Handling Middleware (must be AFTER API routes, BEFORE static files)
 app.use(errorHandler);
 
-// Serve frontend static files in production
-app.use(express.static(path.join(__dirname, '../../frontend/dist')));
-app.get('*', (_req: Request, res: Response) => {
-  res.sendFile(path.join(__dirname, '../../frontend/dist/index.html'));
+app.get('/', (_req: Request, res: Response) => {
+  res.send('Backend API is running. Health: /health');
 });
 
 export default app;
