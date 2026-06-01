@@ -29,4 +29,4 @@ RUN cd backend && npx prisma generate && npm run build
 # Start backend (which also serves the compiled frontend)
 WORKDIR /app/backend
 EXPOSE 3000
-CMD ["npm", "start"]
+CMD ["sh", "-c", "npx prisma db push --accept-data-loss && npm run db:seed && npm start"]
