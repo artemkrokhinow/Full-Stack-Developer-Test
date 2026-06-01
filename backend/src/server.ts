@@ -9,8 +9,8 @@ async function startServer() {
   // Инициализация симуляции cron в рамках одного процесса (согласно ТЗ для Render)
   startInternalScheduler();
 
-  const server = app.listen(PORT, () => {
-    logger.info(`Backend server is running on http://localhost:${PORT}`);
+  const server = app.listen(Number(PORT), '0.0.0.0', () => {
+    logger.info(`Backend server is running on http://0.0.0.0:${PORT}`);
   });
 
   process.on('SIGTERM', () => {
